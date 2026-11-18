@@ -48,6 +48,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     private var navBar: NavBarView? = null
     /** true si usamos la barra propia dentro de Mosaico (y ocultamos la de Android). */
     private var ownBar = false
+    private var ownStatus = false
+    private var statusBar: StatusBarView? = null
     private var serviceOn = false
 
     private var appliedVersion = -1
@@ -74,7 +76,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         palette = prefs.palette()
         appliedVersion = prefs.version
         serviceOn = NavService.isEnabled(this)
-        ownBar = prefs.navInLauncher && !serviceOn
+        ownBar = prefs.navInLauncher && !(serviceOn && prefs.navSystem)
+        ownStatus = prefs.statusInLauncher && !(serviceOn && prefs.statusSystem)
 
         repo = AppRepo(this, prefs)
         repo.load()
@@ -111,6 +114,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         resumed = true
         if (prefs.version != appliedVersion || NavService.isEnabled(this) != serviceOn) { recreate(); return }
         applyImmersive()
+        statusBar?.refresh()
         start.grid.turnstileIn(launchedOut)
         launchedOut = false
         refreshAll(false)
@@ -220,6 +224,15 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         colorSheet = ColorSheet(this, palette)
         root.addView(colorSheet, FrameLayout.LayoutParams(-1, -1))
 
+        val statusH = resources.getIdentifier("status_bar_height", "dimen", "android")
+            .let { if (it > 0) resources.getDimensionPixelSize(it) else dpi(24) }
+        if (ownStatus) {
+            statusBar = StatusBarView(this, opaque = false) { action.open() }.also {
+                it.fg = if (!palette.dark && prefs.bgMode != 0) Color.BLACK else Color.WHITE
+                root.addView(it, root.indexOfChild(action), FrameLayout.LayoutParams(-1, statusH, android.view.Gravity.TOP))
+            }
+        }
+
         val barH = dpi(48)
         if (ownBar) {
             navBar = NavBarView(this,
@@ -249,15 +262,16 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                 @Suppress("DEPRECATION")
                 ime = ins.systemWindowInsetBottom
             }
+            val tt = if (ownStatus) maxOf(top, statusH) else top
             val bar = navBar
             val bb = if (bar != null) {
                 (bar.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottom
                 bar.requestLayout()
                 bottom + barH
             } else bottom
-            start.setInsets(top, bb)
-            appList.setInsets(top, maxOf(bb, ime))
-            action.setInsets(top, bb)
+            start.setInsets(tt, bb)
+            appList.setInsets(tt, maxOf(bb, ime))
+            action.setInsets(tt, bb)
             colorSheet.setInsets(bb)
             ins
         }
@@ -289,16 +303,24 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
 
     /** Oculta la barra de Android mientras Mosaico está en pantalla (se puede mostrar deslizando desde abajo). */
     private fun applyImmersive() {
-        if (!ownBar) return
+        if (!ownBar && !ownStatus) return
         if (Build.VERSION.SDK_INT >= 30) {
+            var types = 0
+            if (ownBar) types = types or WindowInsets.Type.navigationBars()
+            if (ownStatus) types = types or WindowInsets.Type.statusBars()
             window.insetsController?.let {
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                it.hide(WindowInsets.Type.navigationBars())
+                it.hide(types)
             }
         } else {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            var f = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            @Suppress("DEPRECATION")
+            if (ownBar) f = f or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            @Suppress("DEPRECATION")
+            if (ownStatus) f = f or View.SYSTEM_UI_FLAG_FULLSCREEN
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = f
         }
     }
 
@@ -496,6 +518,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
 
     private fun updateBadges() {
         live.badges = NotifService.counts()
+        statusBar?.refresh()
         if (::start.isInitialized) start.grid.invalidateTiles()
     }
 
@@ -595,6 +618,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                 else -> if (resumed) refreshCalendar()
             }
             action.updateClock()
+            statusBar?.refresh()
             start.grid.invalidateTiles()
         }
     }

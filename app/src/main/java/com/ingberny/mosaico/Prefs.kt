@@ -60,6 +60,16 @@ class Prefs(ctx: Context) {
     /** 0 = negra, 1 = igual al fondo, 2 = color de énfasis. */
     var navColor: Int get() = i("navColor", 0); set(v) = put("navColor", v)
 
+    /** Barra de estado propia dentro de Mosaico (oculta la de Android en Inicio). */
+    var statusInLauncher: Boolean get() = b("statusInLauncher", true); set(v) = put("statusInLauncher", v)
+    /** Con el servicio de accesibilidad: barra de estado y de navegación en todo el teléfono. */
+    var statusSystem: Boolean get() = b("statusSystem", true); set(v) = put("statusSystem", v)
+    var navSystem: Boolean get() = b("navSystem", true); set(v) = put("navSystem", v)
+    var lockEnabled: Boolean get() = b("lockEnabled", false); set(v) = put("lockEnabled", v)
+    /** 0 = foto de Inicio, 1 = foto propia, 2 = color de énfasis, 3 = negro. */
+    var lockBg: Int get() = i("lockBg", 2); set(v) = put("lockBg", v)
+    var lockNotifs: Boolean get() = b("lockNotifs", true); set(v) = put("lockNotifs", v)
+
     var lockLayout: Boolean get() = b("lockLayout", false); set(v) = put("lockLayout", v)
     var showFooter: Boolean get() = b("showFooter", true); set(v) = put("showFooter", v)
     var askedDefault: Boolean get() = b("askedDefault", false); set(v) = put("askedDefault", v)

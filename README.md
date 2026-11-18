@@ -44,6 +44,12 @@ Live Tiles, lista de apps alfabética y Centro de actividades.
   en todas las apps. Mantén presionado ← para ver las apps recientes, o Inicio para el asistente. Requiere navegación con 3 botones
   y, en Android 13+, "Permitir ajustes restringidos" en la información de la app. Se oculta sola en pantalla completa y con el teléfono bloqueado.
 
+**Tema para todo el teléfono** (servicio de accesibilidad opcional)
+- Barra de estado estilo W10M (señal, Wi-Fi, batería, hora) encima de la de Android. Tócala o deslízala para abrir el Centro de actividades desde cualquier app.
+- Pantalla de bloqueo estilo W10M: hora grande, fecha, próximo evento y notificaciones. Al deslizarla hacia arriba aparece el bloqueo real de Android
+  (PIN, patrón o huella), así que la seguridad no cambia. No aparece durante las llamadas.
+- Dentro de Mosaico, la barra de estado de Android también se reemplaza por la de Mosaico.
+
 **Launcher predeterminado**
 - Al abrirlo por primera vez aparece el diálogo de Android "¿Usar Mosaico como app de inicio?".
 - Si todavía no es el predeterminado, Inicio muestra un aviso con el botón "Establecer".

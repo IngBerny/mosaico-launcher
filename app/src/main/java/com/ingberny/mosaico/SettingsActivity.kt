@@ -362,16 +362,19 @@ class SettingsActivity : Activity() {
             }
         }
 
-        section("Barra de navegación")
-        caption("Android no deja eliminar su propia barra, pero Mosaico puede ocultarla o taparla con la suya (← atrás, Inicio, buscar).")
-        switchRow("Usar la barra de Mosaico en Inicio",
-            "Oculta la barra de Android mientras estás en Mosaico. Desliza desde abajo si necesitas verla un momento.",
+        section("Barras de Android")
+        caption("Android no deja eliminar sus barras, pero Mosaico puede ocultarlas o taparlas con las suyas al estilo Windows Phone.")
+        switchRow("Barra de estado de Mosaico en Inicio",
+            "Oculta la barra de arriba de Android mientras estás en Mosaico y muestra una al estilo W10M. Tócala o deslízala para abrir el Centro de actividades.",
+            prefs.statusInLauncher) { prefs.statusInLauncher = it; prefs.bump() }
+        switchRow("Barra de navegación de Mosaico en Inicio",
+            "Oculta la barra de abajo de Android mientras estás en Mosaico (← atrás, Inicio, buscar).",
             prefs.navInLauncher) { prefs.navInLauncher = it; prefs.bump() }
 
         val serviceOn = NavService.isEnabled(this)
-        add(label("Barra de Mosaico en todo el teléfono", 17f, pal.fg, Fonts.regular), 14)
-        caption(if (serviceOn) "Activada: la barra de Mosaico tapa la de Android en todas las apps. Mantén presionado ← para ver las apps recientes y el botón Inicio para el asistente."
-            else "Muestra la barra de Mosaico encima de la de Android en todas las apps. Usa un permiso de accesibilidad solo para dibujar la barra y ejecutar Atrás, Inicio y Recientes.")
+        section("Tema para todo el teléfono")
+        caption(if (serviceOn) "El servicio de Mosaico está activo. Elige qué partes quieres usar en todas las apps."
+            else "Con un permiso de accesibilidad, Mosaico puede mostrar su barra de estado, su barra de navegación y su pantalla de bloqueo en todo el teléfono. Solo lo usa para dibujar esas piezas y ejecutar Atrás, Inicio y Recientes; no lee el contenido de tu pantalla.")
         if (!serviceOn) {
             if (Build.VERSION.SDK_INT >= 33) {
                 caption("Paso 1 (Android 13 o más reciente): abre la información de Mosaico, toca ⋮ arriba a la derecha y elige \"Permitir ajustes restringidos\".")
@@ -379,9 +382,29 @@ class SettingsActivity : Activity() {
                     go(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
                 }
             }
-            caption("${if (Build.VERSION.SDK_INT >= 33) "Paso 2" else "Paso 1"}: en Accesibilidad busca \"Barra de navegación de Mosaico\" (a veces está en \"Apps instaladas\" o \"Servicios descargados\") y actívala.")
+            caption("${if (Build.VERSION.SDK_INT >= 33) "Paso 2" else "Paso 1"}: en Accesibilidad busca \"Tema de Mosaico\" (a veces está en \"Apps instaladas\" o \"Servicios descargados\") y actívala.")
             addButton("${if (Build.VERSION.SDK_INT >= 33) "2" else "1"}. Abrir Accesibilidad") { go(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         } else {
+            switchRow("Barra de estado", "Tapa la barra de arriba de Android. Tócala o deslízala para abrir el Centro de actividades.",
+                prefs.statusSystem) { prefs.statusSystem = it; prefs.bump() }
+            switchRow("Barra de navegación", "Tapa la barra de abajo de Android. Mantén presionado ← para ver las apps recientes.",
+                prefs.navSystem) { prefs.navSystem = it; prefs.bump() }
+            switchRow("Pantalla de bloqueo de Mosaico",
+                "Aparece al encender la pantalla. Deslízala hacia arriba y luego desbloquea con tu PIN o huella como siempre.",
+                prefs.lockEnabled) { prefs.lockEnabled = it; changed() }
+            if (prefs.lockEnabled) {
+                add(label("Fondo de la pantalla de bloqueo", 17f, pal.fg, Fonts.regular), 10)
+                choice(listOf("La misma foto de Inicio", "Otra foto", "Color de énfasis", "Negro"), prefs.lockBg) { m ->
+                    if (m == 1) pickImage("lock")
+                    else if (m == 0 && !File(filesDir, "backdrop.jpg").exists()) {
+                        Toast.makeText(this, "Primero elige una foto en \"Imagen de fondo de Inicio\"", Toast.LENGTH_LONG).show()
+                    } else { prefs.lockBg = m; changed() }
+                }
+                if (prefs.lockBg == 1) link("Elegir otra foto") { pickImage("lock") }
+                switchRow("Mostrar notificaciones", "Íconos de las apps con su número de notificaciones", prefs.lockNotifs) {
+                    prefs.lockNotifs = it
+                }
+            }
             addButton("Desactivar en Accesibilidad") { go(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
         if (NavService.navigationMode(this) == 2) {
@@ -390,7 +413,7 @@ class SettingsActivity : Activity() {
                 14f, pal.accent, Fonts.regular), 8)
         }
 
-        add(label("Color de la barra", 17f, pal.fg, Fonts.regular), 14)
+        add(label("Color de las barras", 17f, pal.fg, Fonts.regular), 14)
         choice(listOf("Negra (como el original)", "Igual al fondo", "Color de énfasis"), prefs.navColor) { prefs.navColor = it; changed() }
 
         section("Deslizar hacia abajo en Inicio")
@@ -482,7 +505,11 @@ class SettingsActivity : Activity() {
 
     // ---------- foto propia ----------
 
-    private fun pickImage() {
+    /** "backdrop" = foto de Inicio, "lock" = foto de la pantalla de bloqueo. */
+    private var imageTarget = "backdrop"
+
+    private fun pickImage(target: String = "backdrop") {
+        imageTarget = target
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*")
         @Suppress("DEPRECATION")
         try { startActivityForResult(i, REQ_IMAGE) } catch (e: Exception) { go(Intent(Intent.ACTION_GET_CONTENT).setType("image/*")) }
@@ -495,6 +522,7 @@ class SettingsActivity : Activity() {
         if (requestCode == DefaultHome.REQ_ROLE) { DefaultHome.onResult(this, requestCode); return }
         if (requestCode != REQ_IMAGE || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
+        val target = imageTarget
         val (sw, sh) = screenSize()
         Toast.makeText(this, "Preparando la imagen…", Toast.LENGTH_SHORT).show()
         io.execute {
@@ -512,11 +540,11 @@ class SettingsActivity : Activity() {
                 val ch = (sh / scale).toInt().coerceAtMost(src.height)
                 val crop = Bitmap.createBitmap(src, (src.width - cw) / 2, (src.height - ch) / 2, cw, ch)
                 val out = Bitmap.createScaledBitmap(crop, sw, sh, true)
-                FileOutputStream(File(filesDir, "backdrop.jpg")).use { out.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                FileOutputStream(File(filesDir, "$target.jpg")).use { out.compress(Bitmap.CompressFormat.JPEG, 90, it) }
                 true
             } catch (e: Throwable) { false }
             runOnUiThread {
-                if (ok) { prefs.bgMode = 1; changed() }
+                if (ok) { if (target == "lock") prefs.lockBg = 1 else prefs.bgMode = 1; changed() }
                 else Toast.makeText(this, "No se pudo usar esa imagen", Toast.LENGTH_SHORT).show()
             }
         }

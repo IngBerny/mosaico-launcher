@@ -88,7 +88,20 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
         val links = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dpi(6), dpi(10), dpi(6), dpi(10))
-            addView(expandLabel.apply { setOnClickListener { expanded = !expanded; renderToggles() } })
+            addView(expandLabel.apply { setOnClickListener { expanded = !expanded; renderToggles() } },
+                LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            addView(ctx.label("Panel de Android", 15f, pal.sub, Fonts.regular).apply {
+                setOnClickListener {
+                    close()
+                    val svc = NavService.instance
+                    if (svc != null) svc.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
+                    else try {
+                        @Suppress("WrongConstant")
+                        val sb = context.getSystemService("statusbar")
+                        Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(sb)
+                    } catch (e: Throwable) { }
+                }
+            })
         }
         content.addView(links)
 
@@ -153,9 +166,15 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
         anim().translationY(0f).setDuration(260).start()
     }
 
+    /** Se llama cuando termina de cerrarse (la versión de pantalla completa cierra su actividad). */
+    var onClosed: (() -> Unit)? = null
+
     fun close() {
         if (!isOpen) return
-        anim().translationY(-height.toFloat()).setDuration(220).withEndAction { visibility = View.GONE }.start()
+        anim().translationY(-height.toFloat()).setDuration(220).withEndAction {
+            visibility = View.GONE
+            onClosed?.invoke()
+        }.start()
     }
 
     fun refresh() {

@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="nav_service_desc">Muestra la barra de navegación de Mosaico (atrás, Inicio y buscar) encima de la barra de Android en todas las apps. Solo usa este permiso para dibujar la barra y para ejecutar las acciones Atrás, Inicio y Recientes; no lee el contenido de tu pantalla.</string>
+    <string name="nav_service_desc">Muestra la barra de estado, la barra de navegación y la pantalla de bloqueo de Mosaico, al estilo Windows 10 Mobile, encima de las de Android en todas las apps. Solo usa este permiso para dibujar esas piezas y ejecutar Atrás, Inicio y Recientes; no lee el contenido de tu pantalla.</string>
 </resources>

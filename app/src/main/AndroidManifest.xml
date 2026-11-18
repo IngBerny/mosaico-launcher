@@ -87,6 +87,25 @@
             android:screenOrientation="portrait"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
+        <activity
+            android:name=".ActionCenterActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:taskAffinity="com.ingberny.mosaico.actioncenter"
+            android:theme="@style/Theme.Mosaico.Overlay" />
+
+        <activity
+            android:name=".LockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:showWhenLocked="true"
+            android:taskAffinity="com.ingberny.mosaico.lock"
+            android:theme="@style/Theme.Mosaico.Lock" />
+
         <service
             android:name=".NotifService"
             android:exported="true"
@@ -100,7 +119,7 @@
         <service
             android:name=".NavService"
             android:exported="true"
-            android:label="Barra de navegación de Mosaico"
+            android:label="Tema de Mosaico (barras y bloqueo)"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
