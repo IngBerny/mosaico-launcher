@@ -55,6 +55,11 @@ class Prefs(ctx: Context) {
     /** Tamaño del texto de los mosaicos en %. */
     var textScale: Int get() = i("textScale", 100); set(v) = put("textScale", v)
 
+    /** Barra de navegación propia dentro de Mosaico (oculta la de Android en Inicio). */
+    var navInLauncher: Boolean get() = b("navInLauncher", true); set(v) = put("navInLauncher", v)
+    /** 0 = negra, 1 = igual al fondo, 2 = color de énfasis. */
+    var navColor: Int get() = i("navColor", 0); set(v) = put("navColor", v)
+
     var lockLayout: Boolean get() = b("lockLayout", false); set(v) = put("lockLayout", v)
     var showFooter: Boolean get() = b("showFooter", true); set(v) = put("showFooter", v)
     var askedDefault: Boolean get() = b("askedDefault", false); set(v) = put("askedDefault", v)

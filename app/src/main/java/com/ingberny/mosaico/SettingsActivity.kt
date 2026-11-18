@@ -362,6 +362,37 @@ class SettingsActivity : Activity() {
             }
         }
 
+        section("Barra de navegación")
+        caption("Android no deja eliminar su propia barra, pero Mosaico puede ocultarla o taparla con la suya (← atrás, Inicio, buscar).")
+        switchRow("Usar la barra de Mosaico en Inicio",
+            "Oculta la barra de Android mientras estás en Mosaico. Desliza desde abajo si necesitas verla un momento.",
+            prefs.navInLauncher) { prefs.navInLauncher = it; prefs.bump() }
+
+        val serviceOn = NavService.isEnabled(this)
+        add(label("Barra de Mosaico en todo el teléfono", 17f, pal.fg, Fonts.regular), 14)
+        caption(if (serviceOn) "Activada: la barra de Mosaico tapa la de Android en todas las apps. Mantén presionado ← para ver las apps recientes y el botón Inicio para el asistente."
+            else "Muestra la barra de Mosaico encima de la de Android en todas las apps. Usa un permiso de accesibilidad solo para dibujar la barra y ejecutar Atrás, Inicio y Recientes.")
+        if (!serviceOn) {
+            if (Build.VERSION.SDK_INT >= 33) {
+                caption("Paso 1 (Android 13 o más reciente): abre la información de Mosaico, toca ⋮ arriba a la derecha y elige \"Permitir ajustes restringidos\".")
+                addButton("1. Abrir información de Mosaico") {
+                    go(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                }
+            }
+            caption("${if (Build.VERSION.SDK_INT >= 33) "Paso 2" else "Paso 1"}: en Accesibilidad busca \"Barra de navegación de Mosaico\" (a veces está en \"Apps instaladas\" o \"Servicios descargados\") y actívala.")
+            addButton("${if (Build.VERSION.SDK_INT >= 33) "2" else "1"}. Abrir Accesibilidad") { go(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        } else {
+            addButton("Desactivar en Accesibilidad") { go(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
+        if (NavService.navigationMode(this) == 2) {
+            add(label("Tu teléfono usa navegación por gestos. Para que la barra de Mosaico funcione en todo el teléfono, " +
+                "cambia a \"Navegación con 3 botones\" en Ajustes → Sistema → Gestos (o Pantalla → Barra de navegación).",
+                14f, pal.accent, Fonts.regular), 8)
+        }
+
+        add(label("Color de la barra", 17f, pal.fg, Fonts.regular), 14)
+        choice(listOf("Negra (como el original)", "Igual al fondo", "Color de énfasis"), prefs.navColor) { prefs.navColor = it; changed() }
+
         section("Deslizar hacia abajo en Inicio")
         choice(listOf("Abre el Centro de actividades de Mosaico", "Abre el panel de notificaciones de Android"), prefs.swipeDown) {
             prefs.swipeDown = it; changed()

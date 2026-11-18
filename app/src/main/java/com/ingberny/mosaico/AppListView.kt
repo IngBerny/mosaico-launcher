@@ -183,6 +183,14 @@ class AppListView(ctx: Context, private val host: TileHost, private val cb: Call
         list.setSelection(0)
     }
 
+    fun focusSearch() {
+        hideJump()
+        search.requestFocus()
+        search.post {
+            context.getSystemService(InputMethodManager::class.java)?.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
     fun hideKeyboard() {
         search.clearFocus()
         context.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(windowToken, 0)

@@ -45,6 +45,10 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     private lateinit var action: ActionCenter
     private lateinit var menu: MetroMenu
     private lateinit var colorSheet: ColorSheet
+    private var navBar: NavBarView? = null
+    /** true si usamos la barra propia dentro de Mosaico (y ocultamos la de Android). */
+    private var ownBar = false
+    private var serviceOn = false
 
     private var appliedVersion = -1
     private var launchedOut = false
@@ -69,6 +73,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         super.onCreate(savedInstanceState)
         palette = prefs.palette()
         appliedVersion = prefs.version
+        serviceOn = NavService.isEnabled(this)
+        ownBar = prefs.navInLauncher && !serviceOn
 
         repo = AppRepo(this, prefs)
         repo.load()
@@ -83,6 +89,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         appsCallback = repo.watch { removed -> onAppsChanged(removed) }
         updateBadges()
         loadIconPack()
+        if (intent?.getBooleanExtra(NavBarView.EXTRA_SEARCH, false) == true) root.post { openSearch() }
     }
 
     private fun loadIconPack() {
@@ -102,7 +109,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     override fun onResume() {
         super.onResume()
         resumed = true
-        if (prefs.version != appliedVersion) { recreate(); return }
+        if (prefs.version != appliedVersion || NavService.isEnabled(this) != serviceOn) { recreate(); return }
+        applyImmersive()
         start.grid.turnstileIn(launchedOut)
         launchedOut = false
         refreshAll(false)
@@ -139,6 +147,26 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     /** Botón Inicio con el launcher ya abierto. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.getBooleanExtra(NavBarView.EXTRA_SEARCH, false)) { openSearch(); return }
+        goHomeState()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyImmersive()
+    }
+
+    private fun openSearch() {
+        if (colorSheet.isOpen) colorSheet.dismiss()
+        if (menu.isOpen) menu.dismiss()
+        if (action.isOpen) action.close()
+        start.grid.exitEdit()
+        pager.goTo(1)
+        appList.focusSearch()
+    }
+
+    /** Botón Inicio: cierra lo que esté abierto o vuelve arriba en Inicio. */
+    private fun goHomeState() {
         when {
             colorSheet.isOpen -> colorSheet.dismiss()
             menu.isOpen -> menu.dismiss()
@@ -192,6 +220,21 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         colorSheet = ColorSheet(this, palette)
         root.addView(colorSheet, FrameLayout.LayoutParams(-1, -1))
 
+        val barH = dpi(48)
+        if (ownBar) {
+            navBar = NavBarView(this,
+                onBack = {
+                    @Suppress("DEPRECATION")
+                    onBackPressed()
+                },
+                onHome = { goHomeState() },
+                onSearch = { if (pager.page == 1 && !colorSheet.isOpen) appList.focusSearch() else openSearch() },
+                onLongBack = { NavService.instance?.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS) },
+                onLongHome = { startSafe(NavBarView.assistIntent()) },
+            )
+            root.addView(navBar, FrameLayout.LayoutParams(-1, barH, android.view.Gravity.BOTTOM))
+        }
+
         root.setOnApplyWindowInsetsListener { _, ins ->
             val top: Int; val bottom: Int; val ime: Int
             if (Build.VERSION.SDK_INT >= 30) {
@@ -206,10 +249,16 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                 @Suppress("DEPRECATION")
                 ime = ins.systemWindowInsetBottom
             }
-            start.setInsets(top, bottom)
-            appList.setInsets(top, maxOf(bottom, ime))
-            action.setInsets(top, bottom)
-            colorSheet.setInsets(bottom)
+            val bar = navBar
+            val bb = if (bar != null) {
+                (bar.layoutParams as FrameLayout.LayoutParams).bottomMargin = bottom
+                bar.requestLayout()
+                bottom + barH
+            } else bottom
+            start.setInsets(top, bb)
+            appList.setInsets(top, maxOf(bb, ime))
+            action.setInsets(top, bb)
+            colorSheet.setInsets(bb)
             ins
         }
         setContentView(root)
@@ -234,6 +283,22 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
             if (lightBars) flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
             @Suppress("DEPRECATION")
             w.decorView.systemUiVisibility = flags
+        }
+        applyImmersive()
+    }
+
+    /** Oculta la barra de Android mientras Mosaico está en pantalla (se puede mostrar deslizando desde abajo). */
+    private fun applyImmersive() {
+        if (!ownBar) return
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.insetsController?.let {
+                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                it.hide(WindowInsets.Type.navigationBars())
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         }
     }
 

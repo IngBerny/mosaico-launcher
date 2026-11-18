@@ -38,6 +38,12 @@ Live Tiles, lista de apps alfabética y Centro de actividades.
 - Bloquear el diseño de Inicio para no moverlo por accidente.
 - Ocultar apps de la lista.
 
+**Barra de navegación propia**
+- Dentro de Mosaico, la barra de Android se oculta y aparece la de Mosaico: ← atrás, Inicio y buscar.
+- Opcional, en todo el teléfono: un servicio de accesibilidad dibuja la barra de Mosaico encima de la de Android
+  en todas las apps. Mantén presionado ← para ver las apps recientes, o Inicio para el asistente. Requiere navegación con 3 botones
+  y, en Android 13+, "Permitir ajustes restringidos" en la información de la app. Se oculta sola en pantalla completa y con el teléfono bloqueado.
+
 **Launcher predeterminado**
 - Al abrirlo por primera vez aparece el diálogo de Android "¿Usar Mosaico como app de inicio?".
 - Si todavía no es el predeterminado, Inicio muestra un aviso con el botón "Establecer".
