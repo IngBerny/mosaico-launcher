@@ -3,6 +3,8 @@ package com.ingberny.mosaico
 import android.app.Notification
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.app.NotificationManager
@@ -33,6 +35,40 @@ class NotifService : NotificationListenerService() {
         } catch (e: Exception) { emptyList() }
 
         fun counts(): Map<String, Int> = active().groupingBy { it.packageName }.eachCount()
+
+        /**
+         * Mensajes recientes por app. En apps de chat (WhatsApp, Telegram, Messenger…) se leen los
+         * mensajes individuales del estilo "MessagingStyle"; en las demás, título y texto.
+         */
+        fun previews(ctx: Context): Map<String, List<Preview>> {
+            val out = HashMap<String, MutableList<Preview>>()
+            for (sbn in active()) {
+                val n = sbn.notification
+                if (n.visibility == Notification.VISIBILITY_SECRET) continue
+                val ex = n.extras
+                val title = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+                val convo = ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
+                val avatar = try { n.getLargeIcon()?.loadDrawable(ctx) } catch (e: Exception) { null }
+                val list = out.getOrPut(sbn.packageName) { mutableListOf() }
+                @Suppress("DEPRECATION")
+                val msgs = ex.getParcelableArray(Notification.EXTRA_MESSAGES)
+                if (msgs != null && msgs.isNotEmpty()) {
+                    for (m in msgs) {
+                        val b = m as? Bundle ?: continue
+                        val text = b.getCharSequence("text")?.toString() ?: continue
+                        @Suppress("DEPRECATION")
+                        val person = if (Build.VERSION.SDK_INT >= 28) b.getParcelable<android.app.Person>("sender_person") else null
+                        val sender = person?.name?.toString() ?: b.getCharSequence("sender")?.toString() ?: title
+                        val who = if (convo != null && convo != sender) "$sender · $convo" else sender
+                        list += Preview(who, text, b.getLong("time", sbn.postTime), avatar)
+                    }
+                } else {
+                    val text = (ex.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: ex.getCharSequence(Notification.EXTRA_TEXT))?.toString() ?: ""
+                    if (title.isNotEmpty() || text.isNotEmpty()) list += Preview(title, text, sbn.postTime, avatar)
+                }
+            }
+            return out.mapValues { (_, v) -> v.sortedByDescending { it.time }.take(6) }.filterValues { it.isNotEmpty() }
+        }
 
         fun dismiss(key: String) { try { instance?.cancelNotification(key) } catch (e: Exception) { } }
         fun dismissAll() { try { instance?.cancelAllNotifications() } catch (e: Exception) { } }

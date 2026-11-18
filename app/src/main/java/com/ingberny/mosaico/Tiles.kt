@@ -29,6 +29,8 @@ class TileSpec(
     var hideLabel: Boolean = false,
     /** Color del ícono y del texto; COLOR_DEFAULT = el general. */
     var iconColor: Int = COLOR_DEFAULT,
+    /** true = este mosaico no muestra el contenido de las notificaciones. */
+    var noPreview: Boolean = false,
 ) {
     /** Orden de tamaños al tocar el botón de redimensionar, igual que en el teléfono original. */
     fun nextSize(): TileSize = when (kind) {
@@ -47,7 +49,7 @@ class TileSpec(
 
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("kind", kind.name).put("size", size.name).put("pkg", pkg).put("cls", cls)
-        .put("color", color).put("label", label ?: "").put("hideLabel", hideLabel).put("iconColor", iconColor)
+        .put("color", color).put("label", label ?: "").put("hideLabel", hideLabel).put("iconColor", iconColor).put("noPreview", noPreview)
 
     companion object {
         const val COLOR_DEFAULT = 0
@@ -61,7 +63,7 @@ class TileSpec(
             TileSpec(o.getString("id"), TileKind.valueOf(o.getString("kind")), TileSize.valueOf(o.getString("size")),
                 o.optString("pkg"), o.optString("cls"), o.optInt("color", COLOR_DEFAULT),
                 o.optString("label").ifEmpty { null }, o.optBoolean("hideLabel", false),
-                o.optInt("iconColor", COLOR_DEFAULT))
+                o.optInt("iconColor", COLOR_DEFAULT), o.optBoolean("noPreview", false))
         } catch (e: Exception) { null }
 
         fun live(kind: TileKind, size: TileSize) = TileSpec(newId(), kind, size)
@@ -121,7 +123,12 @@ fun packTiles(tiles: List<TileSpec>, cols: Int): List<Placement> {
 class CalEvent(val title: String, val begin: Long, val allDay: Boolean)
 
 /** Datos compartidos por los mosaicos dinámicos. */
+/** Un mensaje para la vista previa de un mosaico (quién y qué). */
+class Preview(val title: String, val text: String, val time: Long, val avatar: android.graphics.drawable.Drawable?)
+
 class LiveState {
+    /** Vistas previas por paquete, la más reciente primero. */
+    var previews: Map<String, List<Preview>> = emptyMap()
     var weather: WeatherData? = null
     var weatherError: String? = null
     var batteryPct = -1

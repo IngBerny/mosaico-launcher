@@ -280,6 +280,9 @@ class SettingsActivity : Activity() {
         section("Mosaicos")
         caption("Para cambiar el color o el nombre de un solo mosaico: mantenlo presionado y toca el botón de paleta (esquina superior izquierda).")
         switchRow("Mostrar más mosaicos", "Seis columnas en lugar de cuatro", prefs.moreTiles) { prefs.moreTiles = it; prefs.bump() }
+        switchRow("Vista previa de mensajes",
+            "Los mosaicos medianos, anchos y grandes de apps como WhatsApp muestran quién te escribió y el mensaje. Necesita el acceso a notificaciones.",
+            prefs.tilePreviews) { prefs.tilePreviews = it; prefs.bump() }
         switchRow("Ocultar nombres", "Muestra solo los íconos en todos los mosaicos", prefs.hideLabels) { prefs.hideLabels = it; prefs.bump() }
         add(label("Espacio entre mosaicos", 17f, pal.fg, Fonts.regular), 12)
         choice(listOf("Juntos", "Normal", "Separados"), prefs.tileGap) { prefs.tileGap = it; changed() }

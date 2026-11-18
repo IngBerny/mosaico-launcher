@@ -10,6 +10,7 @@ Live Tiles, lista de apps alfabética y Centro de actividades.
 - Mantén presionado un mosaico para entrar al modo edición: arrástralo para moverlo, ⊘ para desanclarlo y ↘ para cambiarle el tamaño.
 - Efecto de inclinación (tilt) al tocar y animación de giro (turnstile) al abrir apps.
 - Contadores de notificaciones en los mosaicos (99+), como en el original.
+- Vista previa de mensajes: los mosaicos anchos y grandes de apps como WhatsApp muestran quién escribió, el mensaje y la foto del contacto; los medianos se voltean para mostrarlo. Se puede apagar en general o por mosaico.
 - Tres estilos de fondo: fondo de pantalla de Android con mosaicos translúcidos, una foto tuya *dentro* de los mosaicos (el efecto de W10M) o color sólido.
 
 **Mosaicos dinámicos (Live Tiles)**

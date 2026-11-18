@@ -421,6 +421,11 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                 t.label = s.ifBlank { null }; v.invalidate(); onTilesChanged()
             }
         }
+        if (t.kind == TileKind.APP && prefs.tilePreviews) {
+            items += (if (t.noPreview) "Mostrar vista previa de mensajes" else "Ocultar vista previa de mensajes") to {
+                t.noPreview = !t.noPreview; v.resetFace(); v.invalidate(); onTilesChanged()
+            }
+        }
         items += (if (t.hideLabel) "Mostrar nombre" else "Ocultar nombre") to {
             t.hideLabel = !t.hideLabel; v.invalidate(); onTilesChanged()
         }
@@ -518,6 +523,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
 
     private fun updateBadges() {
         live.badges = NotifService.counts()
+        live.previews = if (prefs.tilePreviews) NotifService.previews(this) else emptyMap()
+        if (::start.isInitialized) start.grid.views().forEach { it.resetFace() }
         statusBar?.refresh()
         if (::start.isInitialized) start.grid.invalidateTiles()
     }

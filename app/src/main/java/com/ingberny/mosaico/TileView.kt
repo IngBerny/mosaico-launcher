@@ -177,6 +177,12 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
         if (e == null) {
             text(c, "?", w / 2, h / 2 + sp(10f), 28f, Fonts.light, Paint.Align.CENTER); return
         }
+        // Mosaico vivo de mensajes: anchos y grandes empiezan mostrando el contenido; medianos en la cara de atrás.
+        val pv = previews()
+        if (pv.isNotEmpty()) {
+            val showContent = if (spec.size == TileSize.MEDIUM) face == 1 else face == 0
+            if (showContent) { drawPreview(c, e, pv, w, h); return }
+        }
         val scale = host.prefs.iconScale.coerceIn(60, 140) / 100f
         val size = scale * when (spec.size) {
             TileSize.SMALL -> min(w, h) * 0.56f
@@ -197,6 +203,57 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             }
         }
         bottomLabel(c, spec.label ?: e.label, w, h)
+    }
+
+    private fun drawAvatar(c: Canvas, d: android.graphics.drawable.Drawable, x: Float, y: Float, s: Float) {
+        d.colorFilter = null
+        d.setBounds(x.toInt(), y.toInt(), (x + s).toInt(), (y + s).toInt())
+        d.draw(c)
+    }
+
+    private fun drawPreview(c: Canvas, e: AppEntry, pv: List<Preview>, w: Float, h: Float) {
+        val count = host.live.badges[e.pkg] ?: pv.size
+        val badge = if (count > 99) "99+" else count.toString()
+        val iconS = dp(20f)
+        // Ícono pequeño y contador abajo a la derecha, como en Windows Phone.
+        tp.textSize = sp(13f) * textK; tp.typeface = Fonts.regular
+        val bw = tp.measureText(badge)
+        drawIcon(c, e, w - pad - bw - dp(6f) - iconS / 2, h - dp(8f) - iconS / 2 + dp(1f), iconS)
+        text(c, badge, w - pad, h - dp(9f), 13f, Fonts.regular, Paint.Align.RIGHT)
+        if (!labelHidden) text(c, spec.label ?: e.label, pad, h - dp(9f), 12f, maxW = w - pad * 3 - bw - iconS - dp(6f))
+
+        val bottomArea = h - dp(30f)
+        when (spec.size) {
+            TileSize.MEDIUM -> {
+                val p = pv[0]
+                var y = pad
+                y += multiline(c, p.title, pad, y, w - pad * 2, 14f, 1, Fonts.medium)
+                multiline(c, p.text, pad, y + dp(2f), w - pad * 2, 13f, if (h > dp(130f)) 4 else 3, Fonts.regular, 230)
+            }
+            TileSize.WIDE -> {
+                val p = pv[0]
+                var x = pad
+                val av = p.avatar
+                if (av != null) { val s = bottomArea - pad; drawAvatar(c, av, pad, pad, s); x = pad + s + dp(10f) }
+                var y = pad
+                y += multiline(c, p.title, x, y, w - x - pad, 16f, 1, Fonts.medium)
+                multiline(c, p.text, x, y + dp(2f), w - x - pad, 14f, 3, Fonts.regular, 230)
+            }
+            TileSize.LARGE -> {
+                var y = pad
+                for (p in pv.take(4)) {
+                    if (y > bottomArea - dp(36f)) break
+                    var x = pad
+                    val av = p.avatar
+                    if (av != null) { drawAvatar(c, av, pad, y, dp(40f)); x = pad + dp(48f) }
+                    val start = y
+                    y += multiline(c, p.title, x, y, w - x - pad, 15f, 1, Fonts.medium)
+                    y += multiline(c, p.text, x, y + dp(1f), w - x - pad, 13f, 2, Fonts.regular, 220)
+                    y = maxOf(y, start + (if (av != null) dp(40f) else 0f)) + dp(10f)
+                }
+            }
+            TileSize.SMALL -> {}
+        }
     }
 
     private fun drawCalendar(c: Canvas, w: Float, h: Float) {
@@ -353,7 +410,14 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
 
     // ---------- animaciones vivas ----------
 
+    private fun previews(): List<Preview> {
+        if (spec.kind != TileKind.APP || spec.noPreview || spec.size == TileSize.SMALL || !host.prefs.tilePreviews) return emptyList()
+        val e = host.repo.find(spec) ?: return emptyList()
+        return host.live.previews[e.pkg] ?: emptyList()
+    }
+
     fun faces(): Int = when (spec.kind) {
+        TileKind.APP -> if (previews().isNotEmpty()) 2 else 1
         TileKind.CALENDAR -> if (host.live.nextEvent != null && spec.size != TileSize.SMALL) 2 else 1
         TileKind.WEATHER -> if (host.live.weather != null && (spec.size == TileSize.MEDIUM || spec.size == TileSize.WIDE)) 2 else 1
         else -> 1

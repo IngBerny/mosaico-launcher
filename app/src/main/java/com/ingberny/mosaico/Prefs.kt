@@ -70,6 +70,9 @@ class Prefs(ctx: Context) {
     var lockBg: Int get() = i("lockBg", 2); set(v) = put("lockBg", v)
     var lockNotifs: Boolean get() = b("lockNotifs", true); set(v) = put("lockNotifs", v)
 
+    /** Muestra el contenido de las notificaciones (mensajes) en los mosaicos medianos, anchos y grandes. */
+    var tilePreviews: Boolean get() = b("tilePreviews", true); set(v) = put("tilePreviews", v)
+
     var lockLayout: Boolean get() = b("lockLayout", false); set(v) = put("lockLayout", v)
     var showFooter: Boolean get() = b("showFooter", true); set(v) = put("showFooter", v)
     var askedDefault: Boolean get() = b("askedDefault", false); set(v) = put("askedDefault", v)
