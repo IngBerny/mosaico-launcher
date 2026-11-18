@@ -104,7 +104,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
 
     private fun text(c: Canvas, s: String, x: Float, y: Float, sizeSp: Float, face: Typeface = Fonts.regular,
                      align: Paint.Align = Paint.Align.LEFT, maxW: Float = 0f, alpha: Int = 255) {
-        tp.textSize = sp(sizeSp); tp.typeface = face; tp.textAlign = align; tp.alpha = alpha
+        tp.textSize = sp(sizeSp) * textK; tp.typeface = face; tp.textAlign = align; tp.alpha = alpha
         val str = if (maxW > 0) TextUtils.ellipsize(s, tp, maxW, TextUtils.TruncateAt.END).toString() else s
         c.drawText(str, x, y, tp)
         tp.alpha = 255
@@ -112,7 +112,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
 
     private fun multiline(c: Canvas, s: String, x: Float, y: Float, w: Float, sizeSp: Float, lines: Int,
                           face: Typeface = Fonts.regular, alpha: Int = 255): Float {
-        tp.textSize = sp(sizeSp); tp.typeface = face; tp.textAlign = Paint.Align.LEFT; tp.alpha = alpha
+        tp.textSize = sp(sizeSp) * textK; tp.typeface = face; tp.textAlign = Paint.Align.LEFT; tp.alpha = alpha
         val l = StaticLayout.Builder.obtain(s, 0, s.length, tp, max(1, w.toInt()))
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setMaxLines(lines).setEllipsize(TextUtils.TruncateAt.END).setIncludePad(false).build()
@@ -122,6 +122,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
     }
 
     private val pad get() = dp(8f)
+    private val textK get() = host.prefs.textScale.coerceIn(70, 150) / 100f
 
     private val labelHidden get() = spec.hideLabel || host.prefs.hideLabels
 
@@ -137,6 +138,15 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat(); val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
+        fg = resolveFg()
+        tp.color = fg
+        val r = dp(host.prefs.tileRadius.toFloat())
+        if (r > 0f) {
+            canvas.save()
+            clip.reset(); clipRect.set(0f, 0f, w, h)
+            clip.addRoundRect(clipRect, r, r, android.graphics.Path.Direction.CW)
+            canvas.clipPath(clip)
+        }
         drawBackground(canvas, w, h)
         when (spec.kind) {
             TileKind.APP -> drawApp(canvas, w, h)
@@ -145,16 +155,22 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             TileKind.PHOTOS -> drawPhotos(canvas, w, h)
             TileKind.BATTERY -> drawBattery(canvas, w, h)
         }
+        if (r > 0f) canvas.restore()
     }
 
-    private fun drawIcon(c: Canvas, e: AppEntry, cx: Float, cy: Float, size: Float) {
-        val mono: Drawable? = if (host.prefs.monoIcons) host.repo.mono(e) else null
-        val d = mono ?: host.repo.icon(e)
-        // La capa monocromática ocupa el lienzo completo de 108dp; lo visible son los 72dp centrales.
-        val s = if (mono != null) size * 1.5f else size
-        d.setBounds((cx - s / 2).toInt(), (cy - s / 2).toInt(), (cx + s / 2).toInt(), (cy + s / 2).toInt())
-        d.draw(c)
+    private fun drawIcon(c: Canvas, e: AppEntry, cx: Float, cy: Float, size: Float) =
+        host.repo.drawIcon(c, e, cx, cy, size, fg)
+
+    /** Color de íconos y texto de este mosaico. */
+    private var fg = Color.WHITE
+
+    private fun resolveFg(): Int {
+        val v = if (spec.iconColor != TileSpec.COLOR_DEFAULT) spec.iconColor else host.prefs.tileFg
+        return if (v == TileSpec.COLOR_ACCENT) host.palette.accent else v or 0xFF000000.toInt()
     }
+
+    private val clip = android.graphics.Path()
+    private val clipRect = RectF()
 
     private fun drawApp(c: Canvas, w: Float, h: Float) {
         val e = host.repo.find(spec)
@@ -205,7 +221,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             val whenTxt = eventTime(ev)
             multiline(c, whenTxt, pad, y + dp(2f), w - pad * 2, 13f, 1, Fonts.regular, 200)
             bottomLabel(c, "$dayName $dayNum", w, h)
-            if (spec.size != TileSize.MEDIUM) Glyphs.draw(c, G.CALENDAR, w - pad - dp(12f), h - dp(14f), dp(22f), Color.WHITE)
+            if (spec.size != TileSize.MEDIUM) Glyphs.draw(c, G.CALENDAR, w - pad - dp(12f), h - dp(14f), dp(22f), fg)
             return
         }
         if (spec.size == TileSize.MEDIUM) {
@@ -234,7 +250,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
     private fun drawWeather(c: Canvas, w: Float, h: Float) {
         val wd = host.live.weather
         if (wd == null) {
-            Glyphs.draw(c, G.PARTLY_DAY, w / 2, h / 2 - dp(6f), min(w, h) * 0.45f, Color.WHITE)
+            Glyphs.draw(c, G.PARTLY_DAY, w / 2, h / 2 - dp(6f), min(w, h) * 0.45f, fg)
             if (spec.size != TileSize.SMALL) {
                 val msg = host.live.weatherError ?: "Clima"
                 bottomLabel(c, msg, w, h)
@@ -243,11 +259,11 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
         }
         when (spec.size) {
             TileSize.SMALL -> {
-                Glyphs.draw(c, wd.glyph, w / 2, h / 2 - dp(5f), h * 0.5f, Color.WHITE)
+                Glyphs.draw(c, wd.glyph, w / 2, h / 2 - dp(5f), h * 0.5f, fg)
                 text(c, deg(wd.temp), w / 2, h - dp(6f), 11f, Fonts.regular, Paint.Align.CENTER)
             }
             TileSize.MEDIUM -> if (face == 0) {
-                Glyphs.draw(c, wd.glyph, w / 2, h * 0.32f, w * 0.38f, Color.WHITE)
+                Glyphs.draw(c, wd.glyph, w / 2, h * 0.32f, w * 0.38f, fg)
                 text(c, deg(wd.temp), w / 2, h * 0.32f + w * 0.2f + sp(30f), 30f, Fonts.light, Paint.Align.CENTER)
                 bottomLabel(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), w, h)
             } else {
@@ -266,7 +282,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
 
     private fun drawWeatherNow(c: Canvas, wd: WeatherData, w: Float, h: Float, glyph: Float) {
         val gx = pad + glyph / 2 + dp(4f)
-        Glyphs.draw(c, wd.glyph, gx, h / 2 - dp(6f), glyph, Color.WHITE)
+        Glyphs.draw(c, wd.glyph, gx, h / 2 - dp(6f), glyph, fg)
         val tx = gx + glyph / 2 + dp(10f)
         text(c, deg(wd.temp), tx, h / 2 + sp(10f), 42f, Fonts.light)
         tp.textSize = sp(42f); tp.typeface = Fonts.light
@@ -288,7 +304,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
         days.forEachIndexed { i, d ->
             val cx = pad + colW * i + colW / 2
             text(c, d.name, cx, top + sp(16f), 14f, Fonts.regular, Paint.Align.CENTER)
-            Glyphs.draw(c, Glyphs.forWeather(d.code, true), cx, top + sp(22f) + gSize / 2 + dp(4f), gSize, Color.WHITE)
+            Glyphs.draw(c, Glyphs.forWeather(d.code, true), cx, top + sp(22f) + gSize / 2 + dp(4f), gSize, fg)
             text(c, "${deg(d.hi)} ${deg(d.lo)}", cx, top + sp(22f) + gSize + dp(8f) + sp(13f), 13f, Fonts.light, Paint.Align.CENTER)
         }
         if (spec.size == TileSize.WIDE) bottomLabel(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), w, h)
@@ -297,7 +313,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
     private fun drawPhotos(c: Canvas, w: Float, h: Float) {
         val photos = host.live.photos
         if (photos.isEmpty()) {
-            Glyphs.draw(c, G.PHOTO, w / 2, h / 2 - dp(4f), min(w, h) * 0.42f, Color.WHITE)
+            Glyphs.draw(c, G.PHOTO, w / 2, h / 2 - dp(4f), min(w, h) * 0.42f, fg)
             bottomLabel(c, spec.label ?: "Fotos", w, h)
             return
         }
@@ -326,11 +342,11 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
         val txt = if (pct >= 0) "$pct%" else "—"
         if (spec.size == TileSize.SMALL) {
             text(c, txt, w / 2, h / 2 + sp(7f), 18f, Fonts.light, Paint.Align.CENTER)
-            if (host.live.charging) Glyphs.draw(c, G.BOLT, w / 2, h - dp(9f), dp(12f), Color.WHITE)
+            if (host.live.charging) Glyphs.draw(c, G.BOLT, w / 2, h - dp(9f), dp(12f), fg)
             return
         }
         val g = min(w, h) * 0.3f
-        Glyphs.draw(c, if (host.live.charging) G.BOLT else G.BATTERY, pad + g / 2, pad + g / 2, g, Color.WHITE)
+        Glyphs.draw(c, if (host.live.charging) G.BOLT else G.BATTERY, pad + g / 2, pad + g / 2, g, fg)
         text(c, txt, pad, h / 2 + sp(22f), 40f, Fonts.light)
         bottomLabel(c, spec.label ?: if (host.live.charging) "Cargando" else "Batería", w, h)
     }

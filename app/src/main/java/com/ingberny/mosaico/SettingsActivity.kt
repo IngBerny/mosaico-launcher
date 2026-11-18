@@ -283,6 +283,23 @@ class SettingsActivity : Activity() {
         switchRow("Ocultar nombres", "Muestra solo los íconos en todos los mosaicos", prefs.hideLabels) { prefs.hideLabels = it; prefs.bump() }
         add(label("Espacio entre mosaicos", 17f, pal.fg, Fonts.regular), 12)
         choice(listOf("Juntos", "Normal", "Separados"), prefs.tileGap) { prefs.tileGap = it; changed() }
+        add(label("Esquinas de los mosaicos: ${if (prefs.tileRadius == 0) "cuadradas" else "${prefs.tileRadius} dp"}", 15f, pal.fg, Fonts.regular), 12)
+        add(SeekBar(this).apply {
+            max = 24
+            progress = prefs.tileRadius
+            progressTintList = ColorStateList.valueOf(pal.accent)
+            thumbTintList = ColorStateList.valueOf(pal.fg)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {}
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) { prefs.tileRadius = s?.progress ?: 0; changed() }
+            })
+        }, 4)
+        add(label("Tamaño del texto", 17f, pal.fg, Fonts.regular), 12)
+        val scales = listOf(85, 100, 120)
+        choice(listOf("Pequeño", "Normal", "Grande"), scales.indexOf(prefs.textScale).let { if (it < 0) 1 else it }) {
+            prefs.textScale = scales[it]; changed()
+        }
         switchRow("Bloquear diseño de Inicio", "Evita mover, redimensionar o desanclar mosaicos por accidente",
             prefs.lockLayout) { prefs.lockLayout = it; prefs.bump() }
         switchRow("Animación de giro al abrir apps", "El efecto \"turnstile\" de los mosaicos", prefs.turnstile) { prefs.turnstile = it; prefs.bump() }
@@ -298,8 +315,23 @@ class SettingsActivity : Activity() {
             val sel = packs.indexOfFirst { it.pkg == prefs.iconPack } + 1
             choice(names, sel) { i -> prefs.iconPack = if (i == 0) "" else packs[i - 1].pkg; changed() }
         }
-        switchRow("Íconos monocromáticos", "Usa los íconos temáticos de Android 13+ en blanco, como los originales",
-            prefs.monoIcons) { prefs.monoIcons = it; prefs.bump() }
+        add(label("Estilo de los íconos", 17f, pal.fg, Fonts.regular), 12)
+        choice(listOf(
+            "Colores originales de cada app",
+            "Monocromáticos cuando la app lo permite (Android 13+)",
+            "Silueta de un solo color para todos (estilo Metro puro)",
+        ), prefs.iconStyle) { prefs.iconStyle = it; changed() }
+        caption("El color de los íconos se aplica a los estilos monocromático y silueta.")
+
+        add(label("Color de íconos y texto", 17f, pal.fg, Fonts.regular), 14)
+        val fgOptions = listOf("Blanco" to Color.WHITE, "Negro" to Color.BLACK, "Color de énfasis" to TileSpec.COLOR_ACCENT)
+        val fgSel = fgOptions.indexOfFirst { it.second == prefs.tileFg }.let { if (it < 0) 3 else it }
+        choice(fgOptions.map { it.first } + "Personalizado", fgSel) { i ->
+            if (i < 3) { prefs.tileFg = fgOptions[i].second; changed() }
+            else Pickers.askColor(this, pal, "Color de íconos y texto",
+                if (prefs.tileFg == TileSpec.COLOR_ACCENT) prefs.accent else prefs.tileFg) { prefs.tileFg = it; changed() }
+        }
+        caption("Cada mosaico puede tener el suyo: mantenlo presionado → paleta → Color del ícono y texto.")
         add(label("Tamaño de los íconos: ${prefs.iconScale}%", 15f, pal.fg, Fonts.regular), 10)
         add(SeekBar(this).apply {
             max = 80

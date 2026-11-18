@@ -46,6 +46,15 @@ class Prefs(ctx: Context) {
     /** Tamaño de los íconos en %, de 60 a 140. */
     var iconScale: Int get() = i("iconScale", 100); set(v) = put("iconScale", v)
     var iconPack: String get() = s("iconPack") ?: ""; set(v) = put("iconPack", v)
+    /** 0 = colores originales, 1 = monocromático cuando la app lo trae, 2 = silueta para todas. */
+    var iconStyle: Int get() = i("iconStyle", if (monoIcons) 1 else 0); set(v) = put("iconStyle", v)
+    /** Color de íconos y texto de los mosaicos (ARGB) o TileSpec.COLOR_ACCENT. */
+    var tileFg: Int get() = i("tileFg", 0xFFFFFFFF.toInt()); set(v) = put("tileFg", v)
+    /** Radio de las esquinas de los mosaicos en dp (0 = cuadrados, como el original). */
+    var tileRadius: Int get() = i("tileRadius", 0); set(v) = put("tileRadius", v)
+    /** Tamaño del texto de los mosaicos en %. */
+    var textScale: Int get() = i("textScale", 100); set(v) = put("textScale", v)
+
     var lockLayout: Boolean get() = b("lockLayout", false); set(v) = put("lockLayout", v)
     var showFooter: Boolean get() = b("showFooter", true); set(v) = put("showFooter", v)
     var askedDefault: Boolean get() = b("askedDefault", false); set(v) = put("askedDefault", v)

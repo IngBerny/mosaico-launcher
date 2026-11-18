@@ -9,6 +9,8 @@ import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
@@ -53,6 +55,8 @@ class AppRepo(private val ctx: Context, private val prefs: Prefs) {
     private val monos = HashMap<String, Drawable?>()
     private val colors = HashMap<String, Int?>()
 
+    fun clearCaches() { icons.clear(); monos.clear(); colors.clear(); fgLayers.clear() }
+
     fun load() {
         val collator = Collator.getInstance()
         allApps = la.getActivityList(null, Process.myUserHandle())
@@ -83,8 +87,36 @@ class AppRepo(private val ctx: Context, private val prefs: Prefs) {
         if (pack?.has(e.component) == true) return null
         return monos.getOrPut(e.key) {
             val ic = icon(e) as? AdaptiveIconDrawable
-            ic?.monochrome?.constantState?.newDrawable()?.mutate()?.also { it.setTint(Color.WHITE) }
+            ic?.monochrome?.constantState?.newDrawable()?.mutate()
         }
+    }
+
+    private val fgLayers = HashMap<String, Drawable?>()
+
+    /** Capa frontal del ícono adaptable (sin el fondo), útil como silueta. */
+    private fun foreground(e: AppEntry): Drawable? = fgLayers.getOrPut(e.key) {
+        (icon(e) as? AdaptiveIconDrawable)?.foreground?.constantState?.newDrawable()?.mutate()
+    }
+
+    /**
+     * Dibuja el ícono de una app según el estilo elegido.
+     * Estilo 1: monocromático cuando existe; estilo 2: silueta de cualquier ícono, pintada de [color].
+     */
+    fun drawIcon(c: Canvas, e: AppEntry, cx: Float, cy: Float, size: Float, color: Int) {
+        val style = prefs.iconStyle
+        var d: Drawable = icon(e)
+        var s = size
+        var tint = false
+        val m = if (style >= 1) mono(e) else null
+        when {
+            m != null -> { d = m; s = size * 1.5f; tint = true }
+            style == 2 && pack?.has(e.component) == true -> { tint = true }
+            style == 2 -> foreground(e)?.let { d = it; s = size * 1.5f; tint = true } ?: run { tint = true }
+        }
+        d.setBounds((cx - s / 2).toInt(), (cy - s / 2).toInt(), (cx + s / 2).toInt(), (cy + s / 2).toInt())
+        d.colorFilter = if (tint) PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN) else null
+        d.draw(c)
+        if (tint) d.colorFilter = null
     }
 
     /** Color dominante del ícono, ajustado para que funcione como fondo de mosaico. */

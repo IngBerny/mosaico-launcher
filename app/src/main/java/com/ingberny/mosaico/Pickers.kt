@@ -132,17 +132,20 @@ class ColorSheet(ctx: Context, private val pal: Palette) : FrameLayout(ctx) {
     private var bottomPad = 0
     fun setInsets(bottom: Int) { bottomPad = bottom }
 
-    fun show(title: String, current: Int, accent: Int, appColor: Int?, onPick: (Int) -> Unit, onCustom: () -> Unit) {
-        card.removeAllViews()
-        card.setPadding(dpi(16), dpi(16), dpi(16), dpi(16) + bottomPad)
-        card.addView(context.label(title, 20f, pal.fg, Fonts.light))
-
-        val specials = listOf(
+    fun show(title: String, current: Int, accent: Int, appColor: Int?, onPick: (Int) -> Unit, onCustom: () -> Unit) =
+        show(title, current, listOf(
             Triple("Automático", TileSpec.COLOR_DEFAULT, accent),
             Triple("Énfasis", TileSpec.COLOR_ACCENT, accent),
             Triple("De la app", TileSpec.COLOR_APP, appColor ?: accent),
             Triple("Transparente", TileSpec.COLOR_TRANSPARENT, Color.TRANSPARENT),
-        )
+        ), onPick, onCustom)
+
+    /** [specials]: (nombre, valor guardado, color que se muestra). */
+    fun show(title: String, current: Int, specials: List<Triple<String, Int, Int>>, onPick: (Int) -> Unit, onCustom: () -> Unit) {
+        card.removeAllViews()
+        card.setPadding(dpi(16), dpi(16), dpi(16), dpi(16) + bottomPad)
+        card.addView(context.label(title, 20f, pal.fg, Fonts.light))
+
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         for ((name, value, shown) in specials) {
             row.addView(LinearLayout(context).apply {

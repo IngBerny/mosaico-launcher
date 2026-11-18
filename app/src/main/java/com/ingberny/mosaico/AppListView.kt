@@ -33,12 +33,11 @@ class IconTile(ctx: Context, private val host: TileHost) : View(ctx) {
         val e = entry ?: return
         val w = width.toFloat(); val h = height.toFloat()
         p.color = (if (host.prefs.appColors) host.repo.color(e) else null) ?: host.palette.accent
-        canvas.drawRect(0f, 0f, w, h, p)
-        val mono = if (host.prefs.monoIcons) host.repo.mono(e) else null
-        val d = mono ?: host.repo.icon(e)
-        val s = if (mono != null) w * 0.62f * 1.5f else w * 0.72f
-        d.setBounds(((w - s) / 2).toInt(), ((h - s) / 2).toInt(), ((w + s) / 2).toInt(), ((h + s) / 2).toInt())
-        d.draw(canvas)
+        val r = dp(host.prefs.tileRadius.toFloat()) * 0.6f
+        canvas.drawRoundRect(0f, 0f, w, h, r, r, p)
+        val fgPref = host.prefs.tileFg
+        val fg = if (fgPref == TileSpec.COLOR_ACCENT) host.palette.accent else fgPref or 0xFF000000.toInt()
+        host.repo.drawIcon(canvas, e, w / 2, h / 2, w * if (host.prefs.iconStyle == 0) 0.72f else 0.62f, fg)
     }
 }
 

@@ -30,7 +30,10 @@ Live Tiles, lista de apps alfabética y Centro de actividades.
 **Personalizar**
 - Tema oscuro o claro, los 20 colores de énfasis originales o un color libre (tono, saturación, brillo o código hex).
 - Color propio para cada mosaico (énfasis, color de la app, transparente, cualquiera de la paleta o uno libre), además de cambiarle el nombre u ocultarlo. En modo edición, toca el botón de paleta.
-- Paquetes de íconos de Google Play (formato ADW/Nova), íconos monocromáticos y tamaño de íconos ajustable.
+- Paquetes de íconos de Google Play (formato ADW/Nova) y tamaño de íconos ajustable.
+- Estilo de íconos: colores originales, monocromáticos o silueta de un solo color para todas las apps.
+- Color de íconos y texto: blanco, negro, énfasis o cualquiera, en general o por mosaico.
+- Esquinas redondeadas y tamaño del texto de los mosaicos.
 - Ocultar los nombres de todos los mosaicos, espacio entre mosaicos y 4 o 6 columnas.
 - Bloquear el diseño de Inicio para no moverlo por accidente.
 - Ocultar apps de la lista.

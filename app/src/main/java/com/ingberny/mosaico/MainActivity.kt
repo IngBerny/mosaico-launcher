@@ -317,6 +317,14 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                 Pickers.askColor(this, palette, "Color personalizado", start or 0xFF000000.toInt()) { c -> setTileColor(t, v, c) }
             }
         }
+        items += "Color del ícono y texto" to {
+            colorSheet.show("Color del ícono y texto", t.iconColor, iconColorOptions(true), { c ->
+                t.iconColor = c; v.invalidate(); onTilesChanged()
+            }) {
+                val cur = if (t.iconColor == TileSpec.COLOR_DEFAULT || t.iconColor == TileSpec.COLOR_ACCENT) Color.WHITE else t.iconColor
+                Pickers.askColor(this, palette, "Color del ícono", cur) { c -> t.iconColor = c; v.invalidate(); onTilesChanged() }
+            }
+        }
         val currentName = t.label ?: repo.find(t)?.label ?: when (t.kind) {
             TileKind.CALENDAR -> "Calendario"; TileKind.WEATHER -> "Clima"; TileKind.PHOTOS -> "Fotos"
             TileKind.BATTERY -> "Batería"; TileKind.APP -> ""
@@ -329,10 +337,21 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         items += (if (t.hideLabel) "Mostrar nombre" else "Ocultar nombre") to {
             t.hideLabel = !t.hideLabel; v.invalidate(); onTilesChanged()
         }
-        if (t.color != TileSpec.COLOR_DEFAULT || t.label != null || t.hideLabel) items += "Restablecer estilo" to {
-            t.color = TileSpec.COLOR_DEFAULT; t.label = null; t.hideLabel = false; v.invalidate(); onTilesChanged()
-        }
+        if (t.color != TileSpec.COLOR_DEFAULT || t.iconColor != TileSpec.COLOR_DEFAULT || t.label != null || t.hideLabel)
+            items += "Restablecer estilo" to {
+                t.color = TileSpec.COLOR_DEFAULT; t.iconColor = TileSpec.COLOR_DEFAULT
+                t.label = null; t.hideLabel = false; v.invalidate(); onTilesChanged()
+            }
         menu.show(v, items)
+    }
+
+    private fun iconColorOptions(withAuto: Boolean): List<Triple<String, Int, Int>> {
+        val l = ArrayList<Triple<String, Int, Int>>()
+        if (withAuto) l += Triple("Automático", TileSpec.COLOR_DEFAULT, Color.WHITE)
+        l += Triple("Blanco", Color.WHITE, Color.WHITE)
+        l += Triple("Negro", Color.BLACK, Color.BLACK)
+        l += Triple("Énfasis", TileSpec.COLOR_ACCENT, palette.accent)
+        return l
     }
 
     private fun setTileColor(t: TileSpec, v: TileView, c: Int) {

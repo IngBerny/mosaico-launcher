@@ -27,6 +27,8 @@ class TileSpec(
     /** Nombre propio; null = el nombre de la app. */
     var label: String? = null,
     var hideLabel: Boolean = false,
+    /** Color del ícono y del texto; COLOR_DEFAULT = el general. */
+    var iconColor: Int = COLOR_DEFAULT,
 ) {
     /** Orden de tamaños al tocar el botón de redimensionar, igual que en el teléfono original. */
     fun nextSize(): TileSize = when (kind) {
@@ -45,7 +47,7 @@ class TileSpec(
 
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("kind", kind.name).put("size", size.name).put("pkg", pkg).put("cls", cls)
-        .put("color", color).put("label", label ?: "").put("hideLabel", hideLabel)
+        .put("color", color).put("label", label ?: "").put("hideLabel", hideLabel).put("iconColor", iconColor)
 
     companion object {
         const val COLOR_DEFAULT = 0
@@ -58,7 +60,8 @@ class TileSpec(
         fun fromJson(o: JSONObject): TileSpec? = try {
             TileSpec(o.getString("id"), TileKind.valueOf(o.getString("kind")), TileSize.valueOf(o.getString("size")),
                 o.optString("pkg"), o.optString("cls"), o.optInt("color", COLOR_DEFAULT),
-                o.optString("label").ifEmpty { null }, o.optBoolean("hideLabel", false))
+                o.optString("label").ifEmpty { null }, o.optBoolean("hideLabel", false),
+                o.optInt("iconColor", COLOR_DEFAULT))
         } catch (e: Exception) { null }
 
         fun live(kind: TileKind, size: TileSize) = TileSpec(newId(), kind, size)
