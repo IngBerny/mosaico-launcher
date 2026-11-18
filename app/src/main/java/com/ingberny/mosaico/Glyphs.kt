@@ -15,7 +15,7 @@ enum class G {
     SUN, MOON, PARTLY_DAY, PARTLY_NIGHT, CLOUD, FOG, DRIZZLE, RAIN, SNOW, STORM,
     WIFI, BLUETOOTH, AIRPLANE, FLASHLIGHT, LOCATION, ROTATION, QUIET, BATTERY, DATA,
     HOTSPOT, CAMERA, SETTINGS, SEARCH, PIN, UNPIN, RESIZE, CLOSE, CHEVRON_DOWN,
-    CHEVRON_UP, ARROW_RIGHT, PHOTO, CALENDAR, BOLT, CHECK
+    CHEVRON_UP, ARROW_RIGHT, PHOTO, CALENDAR, BOLT, CHECK, MORE, PALETTE
 }
 
 object Glyphs {
@@ -192,6 +192,11 @@ object Glyphs {
                 box(-0.36f, -0.28f, 0.36f, 0.34f, 0.02f)
                 ln(-0.36f, -0.12f, 0.36f, -0.12f)
                 ln(-0.18f, -0.38f, -0.18f, -0.2f); ln(0.18f, -0.38f, 0.18f, -0.2f)
+            }
+            G.MORE -> { dot(-0.26f, 0f, 0.06f); dot(0f, 0f, 0.06f); dot(0.26f, 0f, 0.06f) }
+            G.PALETTE -> {
+                circ(0f, 0f, 0.36f)
+                dot(-0.15f, -0.14f, 0.06f); dot(0.08f, -0.2f, 0.06f); dot(0.2f, 0.02f, 0.06f); dot(-0.18f, 0.1f, 0.06f)
             }
             G.CHECK -> poly(false, -0.3f, 0.02f, -0.08f, 0.24f, 0.32f, -0.2f)
             G.BOLT -> poly(true, 0.06f, -0.4f, -0.2f, 0.06f, 0f, 0.06f, -0.06f, 0.4f, 0.2f, -0.06f, 0f, -0.06f)

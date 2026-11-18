@@ -40,6 +40,19 @@ class Prefs(ctx: Context) {
     /** 0 = Centro de actividades de Mosaico, 1 = panel de notificaciones de Android. */
     var swipeDown: Int get() = i("swipeDown", 0); set(v) = put("swipeDown", v)
 
+    var hideLabels: Boolean get() = b("hideLabels", false); set(v) = put("hideLabels", v)
+    /** 0 = juntos, 1 = normal, 2 = separados. */
+    var tileGap: Int get() = i("tileGap", 1); set(v) = put("tileGap", v)
+    /** Tamaño de los íconos en %, de 60 a 140. */
+    var iconScale: Int get() = i("iconScale", 100); set(v) = put("iconScale", v)
+    var iconPack: String get() = s("iconPack") ?: ""; set(v) = put("iconPack", v)
+    var lockLayout: Boolean get() = b("lockLayout", false); set(v) = put("lockLayout", v)
+    var showFooter: Boolean get() = b("showFooter", true); set(v) = put("showFooter", v)
+    var askedDefault: Boolean get() = b("askedDefault", false); set(v) = put("askedDefault", v)
+    var hiddenApps: Set<String>
+        get() = sp.getStringSet("hidden", emptySet())?.toSet() ?: emptySet()
+        set(v) { sp.edit().putStringSet("hidden", v).apply() }
+
     var celsius: Boolean get() = b("celsius", true); set(v) = put("celsius", v)
     var city: String get() = s("city") ?: ""; set(v) = put("city", v)
 

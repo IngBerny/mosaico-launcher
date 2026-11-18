@@ -198,6 +198,21 @@ class SettingsActivity : Activity() {
         add(label("MOSAICO", 14f, pal.fg, Fonts.medium))
         add(label("personalizar", 46f, pal.fg, Fonts.light).apply { setPadding(0, dpi(2), 0, 0) })
 
+        if (DefaultHome.isDefault(this)) {
+            add(label("✓  Mosaico es tu pantalla de inicio", 15f, pal.sub, Fonts.regular), 10)
+        } else {
+            add(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(pal.accent)
+                setPadding(dpi(16), dpi(14), dpi(16), dpi(14))
+                addView(label("Mosaico no es tu launcher predeterminado", 16f, Color.WHITE, Fonts.medium))
+                addView(label("Toca aquí para que el botón Inicio abra siempre Mosaico.", 14f, Color.WHITE).apply {
+                    setPadding(0, dpi(4), 0, 0)
+                })
+                setOnClickListener { DefaultHome.request(this@SettingsActivity) }
+            }, 14)
+        }
+
         // Tema
         section("Fondo")
         choice(listOf("Oscuro", "Claro"), if (prefs.dark) 0 else 1) { prefs.dark = it == 0; changed(true) }
@@ -227,6 +242,9 @@ class SettingsActivity : Activity() {
         }
         add(grid, 8)
         caption("Actual: " + (Prefs.ACCENTS.firstOrNull { it.second == prefs.accent }?.first ?: "personalizado"))
+        link("Color personalizado…") {
+            Pickers.askColor(this, pal, "Color de énfasis", prefs.accent) { prefs.accent = it; changed(true) }
+        }
 
         section("Color de los mosaicos")
         choice(listOf("Color de énfasis", "Color de cada app"), if (prefs.appColors) 1 else 0) { prefs.appColors = it == 1; changed() }
@@ -240,6 +258,9 @@ class SettingsActivity : Activity() {
         }
         if (prefs.bgMode == 1) link("Elegir otra foto") { pickImage() }
         if (prefs.bgMode == 0) {
+            link("Cambiar el fondo de pantalla de Android") {
+                go(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Fondo de pantalla"))
+            }
             add(label("Opacidad de los mosaicos: ${prefs.tileOpacity}%", 15f, pal.fg, Fonts.regular), 10)
             add(SeekBar(this).apply {
                 max = 100
@@ -256,11 +277,58 @@ class SettingsActivity : Activity() {
             }, 4)
         }
 
-        section("Inicio")
+        section("Mosaicos")
+        caption("Para cambiar el color o el nombre de un solo mosaico: mantenlo presionado y toca el botón de paleta (esquina superior izquierda).")
         switchRow("Mostrar más mosaicos", "Seis columnas en lugar de cuatro", prefs.moreTiles) { prefs.moreTiles = it; prefs.bump() }
+        switchRow("Ocultar nombres", "Muestra solo los íconos en todos los mosaicos", prefs.hideLabels) { prefs.hideLabels = it; prefs.bump() }
+        add(label("Espacio entre mosaicos", 17f, pal.fg, Fonts.regular), 12)
+        choice(listOf("Juntos", "Normal", "Separados"), prefs.tileGap) { prefs.tileGap = it; changed() }
+        switchRow("Bloquear diseño de Inicio", "Evita mover, redimensionar o desanclar mosaicos por accidente",
+            prefs.lockLayout) { prefs.lockLayout = it; prefs.bump() }
+        switchRow("Animación de giro al abrir apps", "El efecto \"turnstile\" de los mosaicos", prefs.turnstile) { prefs.turnstile = it; prefs.bump() }
+        switchRow("Mostrar \"Todas las apps\" al final", "Los enlaces debajo de los mosaicos", prefs.showFooter) { prefs.showFooter = it; prefs.bump() }
+
+        section("Íconos")
+        val packs = IconPacks.installed(this)
+        if (packs.isEmpty()) {
+            caption("No tienes paquetes de íconos instalados. Busca \"icon pack\" en Google Play (por ejemplo, alguno estilo Metro o Windows) y vuelve aquí para elegirlo.")
+        } else {
+            add(label("Paquete de íconos", 17f, pal.fg, Fonts.regular), 8)
+            val names = listOf("Íconos del sistema") + packs.map { it.label }
+            val sel = packs.indexOfFirst { it.pkg == prefs.iconPack } + 1
+            choice(names, sel) { i -> prefs.iconPack = if (i == 0) "" else packs[i - 1].pkg; changed() }
+        }
         switchRow("Íconos monocromáticos", "Usa los íconos temáticos de Android 13+ en blanco, como los originales",
             prefs.monoIcons) { prefs.monoIcons = it; prefs.bump() }
-        switchRow("Animación de giro al abrir apps", "El efecto \"turnstile\" de los mosaicos", prefs.turnstile) { prefs.turnstile = it; prefs.bump() }
+        add(label("Tamaño de los íconos: ${prefs.iconScale}%", 15f, pal.fg, Fonts.regular), 10)
+        add(SeekBar(this).apply {
+            max = 80
+            progress = prefs.iconScale - 60
+            progressTintList = ColorStateList.valueOf(pal.accent)
+            thumbTintList = ColorStateList.valueOf(pal.fg)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {}
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) { prefs.iconScale = 60 + (s?.progress ?: 40); changed() }
+            })
+        }, 4)
+
+        val hidden = prefs.hiddenApps
+        if (hidden.isNotEmpty()) {
+            section("Apps ocultas")
+            caption("Estas apps no aparecen en la lista. Para ocultar otra, mantenla presionada en la lista de apps.")
+            val repo = AppRepo(this, prefs).also { it.load() }
+            for (key in hidden.sorted()) {
+                val name = repo.allApps.firstOrNull { it.key == key }?.label ?: key.substringBefore("/")
+                add(LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dpi(6), 0, dpi(6))
+                    addView(label(name, 17f, pal.fg, Fonts.regular), LinearLayout.LayoutParams(0, -2, 1f))
+                    addView(button("Mostrar") { prefs.hiddenApps = prefs.hiddenApps - key; changed() })
+                })
+            }
+        }
 
         section("Deslizar hacia abajo en Inicio")
         choice(listOf("Abre el Centro de actividades de Mosaico", "Abre el panel de notificaciones de Android"), prefs.swipeDown) {
@@ -324,7 +392,7 @@ class SettingsActivity : Activity() {
         }
 
         section("Launcher")
-        addButton("Elegir launcher predeterminado") { go(Intent(Settings.ACTION_HOME_SETTINGS)) }
+        addButton("Elegir launcher predeterminado") { DefaultHome.request(this) }
         addButton("Restablecer pantalla de Inicio") {
             prefs.tilesJson = null; prefs.bump()
             Toast.makeText(this, "Inicio restablecido", Toast.LENGTH_SHORT).show()
@@ -361,6 +429,7 @@ class SettingsActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DefaultHome.REQ_ROLE) { DefaultHome.onResult(this, requestCode); return }
         if (requestCode != REQ_IMAGE || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         val (sw, sh) = screenSize()

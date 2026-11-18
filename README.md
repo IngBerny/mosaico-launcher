@@ -28,9 +28,16 @@ Live Tiles, lista de apps alfabética y Centro de actividades.
 - Notificaciones agrupadas por app: tócalas para abrirlas, deslízalas para descartarlas o usa "Borrar todo".
 
 **Personalizar**
-- Tema oscuro o claro y los 20 colores de énfasis originales.
-- Mosaicos con el color de énfasis o con el color de cada app.
-- Íconos monocromáticos (usa los íconos temáticos de Android 13+).
+- Tema oscuro o claro, los 20 colores de énfasis originales o un color libre (tono, saturación, brillo o código hex).
+- Color propio para cada mosaico (énfasis, color de la app, transparente, cualquiera de la paleta o uno libre), además de cambiarle el nombre u ocultarlo. En modo edición, toca el botón de paleta.
+- Paquetes de íconos de Google Play (formato ADW/Nova), íconos monocromáticos y tamaño de íconos ajustable.
+- Ocultar los nombres de todos los mosaicos, espacio entre mosaicos y 4 o 6 columnas.
+- Bloquear el diseño de Inicio para no moverlo por accidente.
+- Ocultar apps de la lista.
+
+**Launcher predeterminado**
+- Al abrirlo por primera vez aparece el diálogo de Android "¿Usar Mosaico como app de inicio?".
+- Si todavía no es el predeterminado, Inicio muestra un aviso con el botón "Establecer".
 
 ## Compilar e instalar
 
@@ -47,8 +54,13 @@ Requiere Android 10 o superior.
 3. Ve a **Actions → Compilar APK → (última ejecución) → Artifacts → mosaico-apk**, descarga el zip e instala el APK en el teléfono.
 
 ### Ponerlo como launcher predeterminado
-Al presionar el botón Inicio, Android te preguntará qué launcher usar: elige **Mosaico** y "Siempre".
-También puedes ir a **Personalizar → Elegir launcher predeterminado**.
+Mosaico lo pide solo la primera vez. También puedes tocar el aviso "Establecer" en Inicio o ir a
+**Personalizar → Elegir launcher predeterminado**. Si tu marca bloquea el diálogo, se abre directamente
+**Ajustes → Apps → Apps predeterminadas → App de inicio**.
+
+### Firma
+El APK se firma con `app/mosaico-release.jks` (contraseña en `app/keystore.properties`) para que cada
+versión se instale encima de la anterior. Si algún día publicas la app en Google Play, crea una clave nueva y privada.
 
 ## Primeros pasos recomendados
 - En **Personalizar → Permisos**, activa el acceso a **Notificaciones** (contadores y Centro de actividades).

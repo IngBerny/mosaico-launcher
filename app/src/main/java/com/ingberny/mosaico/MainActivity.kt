@@ -44,6 +44,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     private lateinit var appList: AppListView
     private lateinit var action: ActionCenter
     private lateinit var menu: MetroMenu
+    private lateinit var colorSheet: ColorSheet
 
     private var appliedVersion = -1
     private var launchedOut = false
@@ -69,7 +70,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         palette = prefs.palette()
         appliedVersion = prefs.version
 
-        repo = AppRepo(this)
+        repo = AppRepo(this, prefs)
         repo.load()
         val tiles = TileStore.load(prefs) ?: DefaultTiles.build(this, repo).also { TileStore.save(prefs, it) }
         live.weather = WeatherData.fromJson(prefs.weatherJson)
@@ -81,6 +82,21 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         NotifService.addListener(notifListener)
         appsCallback = repo.watch { removed -> onAppsChanged(removed) }
         updateBadges()
+        loadIconPack()
+    }
+
+    private fun loadIconPack() {
+        val pkg = prefs.iconPack
+        if (pkg.isEmpty()) return
+        io.execute {
+            val loader = try { IconPackLoader(this, pkg) } catch (e: Exception) { null }
+            main.post {
+                if (loader == null) { prefs.iconPack = ""; return@post }
+                repo.pack = loader
+                start.grid.invalidateTiles()
+                appList.refresh()
+            }
+        }
     }
 
     override fun onResume() {
@@ -91,6 +107,12 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         launchedOut = false
         refreshAll(false)
         updateBadges()
+        val isDefault = DefaultHome.isDefault(this)
+        start.showBanner(!isDefault)
+        if (!isDefault && !prefs.askedDefault) {
+            prefs.askedDefault = true
+            main.postDelayed({ if (resumed) DefaultHome.request(this) }, 600)
+        }
         action.updateClock()
         main.removeCallbacks(flipLoop); main.postDelayed(flipLoop, 3500)
         main.removeCallbacks(photoLoop); main.postDelayed(photoLoop, 6000)
@@ -118,6 +140,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         when {
+            colorSheet.isOpen -> colorSheet.dismiss()
             menu.isOpen -> menu.dismiss()
             action.isOpen -> action.close()
             start.grid.editing -> start.grid.exitEdit()
@@ -129,6 +152,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     @Deprecated("Usado por compatibilidad con todas las versiones")
     override fun onBackPressed() {
         when {
+            colorSheet.isOpen -> colorSheet.dismiss()
             menu.isOpen -> menu.dismiss()
             action.isOpen -> action.close()
             appList.jumpOpen -> appList.hideJump()
@@ -148,6 +172,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         start.grid.listener = this
         start.grid.setTiles(tiles)
         start.scroll.onPullDown = { onPullDown() }
+        start.onBannerClick = { DefaultHome.request(this) }
 
         appList = AppListView(this, this, this)
         appList.refresh()
@@ -164,6 +189,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         root.addView(action, FrameLayout.LayoutParams(-1, -1))
         menu = MetroMenu(this, palette)
         root.addView(menu, FrameLayout.LayoutParams(-1, -1))
+        colorSheet = ColorSheet(this, palette)
+        root.addView(colorSheet, FrameLayout.LayoutParams(-1, -1))
 
         root.setOnApplyWindowInsetsListener { _, ins ->
             val top: Int; val bottom: Int; val ime: Int
@@ -182,6 +209,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
             start.setInsets(top, bottom)
             appList.setInsets(top, maxOf(bottom, ime))
             action.setInsets(top, bottom)
+            colorSheet.setInsets(bottom)
             ins
         }
         setContentView(root)
@@ -276,6 +304,47 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     }
 
     override fun onTilesChanged() = TileStore.save(prefs, start.grid.tiles)
+
+    override fun onLayoutLocked() = toast("El diseño de Inicio está bloqueado. Puedes desbloquearlo en Personalizar.")
+
+    /** Botón de paleta en modo edición: color, nombre y visibilidad del nombre del mosaico. */
+    override fun onTileCustomize(t: TileSpec, v: TileView) {
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items += "Color del mosaico" to {
+            val appColor = repo.find(t)?.let { repo.color(it) }
+            colorSheet.show("Color del mosaico", t.color, palette.accent, appColor, { c -> setTileColor(t, v, c) }) {
+                val start = if (t.color > TileSpec.COLOR_ACCENT || t.color < 0) t.color else v.baseColor()
+                Pickers.askColor(this, palette, "Color personalizado", start or 0xFF000000.toInt()) { c -> setTileColor(t, v, c) }
+            }
+        }
+        val currentName = t.label ?: repo.find(t)?.label ?: when (t.kind) {
+            TileKind.CALENDAR -> "Calendario"; TileKind.WEATHER -> "Clima"; TileKind.PHOTOS -> "Fotos"
+            TileKind.BATTERY -> "Batería"; TileKind.APP -> ""
+        }
+        items += "Cambiar nombre" to {
+            Pickers.askText(this, palette, "Nombre del mosaico", currentName, "Nombre") { s ->
+                t.label = s.ifBlank { null }; v.invalidate(); onTilesChanged()
+            }
+        }
+        items += (if (t.hideLabel) "Mostrar nombre" else "Ocultar nombre") to {
+            t.hideLabel = !t.hideLabel; v.invalidate(); onTilesChanged()
+        }
+        if (t.color != TileSpec.COLOR_DEFAULT || t.label != null || t.hideLabel) items += "Restablecer estilo" to {
+            t.color = TileSpec.COLOR_DEFAULT; t.label = null; t.hideLabel = false; v.invalidate(); onTilesChanged()
+        }
+        menu.show(v, items)
+    }
+
+    private fun setTileColor(t: TileSpec, v: TileView, c: Int) {
+        t.color = c; v.invalidate(); onTilesChanged()
+    }
+
+    @Deprecated("API clásica de Activity")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        DefaultHome.onResult(this, requestCode)
+    }
     override fun onEditModeChanged(editing: Boolean) {}
     override fun scroller(): ScrollView = start.scroll
 
@@ -302,6 +371,11 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
             appList.reset()
             pager.goTo(0)
             start.scrollToBottom()
+        }
+        items += "Ocultar de la lista" to {
+            prefs.hiddenApps = prefs.hiddenApps + e.key
+            repo.applyHidden(); appList.refresh()
+            toast("${e.label} oculta. Puedes volver a mostrarla en Personalizar.")
         }
         items += "Información de la app" to { repo.appInfo(e) }
         items += "Desinstalar" to { repo.uninstall(e) }

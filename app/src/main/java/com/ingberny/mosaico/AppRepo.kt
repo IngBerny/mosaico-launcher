@@ -38,9 +38,16 @@ class AppEntry(val info: LauncherActivityInfo) {
     }
 }
 
-class AppRepo(private val ctx: Context) {
+class AppRepo(private val ctx: Context, private val prefs: Prefs) {
     val la: LauncherApps = ctx.getSystemService(LauncherApps::class.java)
+    /** Todas las apps (incluidas las ocultas), para los mosaicos. */
+    var allApps: List<AppEntry> = emptyList(); private set
+    /** Apps visibles en la lista. */
     var apps: List<AppEntry> = emptyList(); private set
+
+    /** Paquete de íconos activo (se carga en segundo plano). */
+    var pack: IconPackLoader? = null
+        set(v) { field = v; icons.clear(); monos.clear(); colors.clear() }
 
     private val icons = HashMap<String, Drawable>()
     private val monos = HashMap<String, Drawable?>()
@@ -48,25 +55,32 @@ class AppRepo(private val ctx: Context) {
 
     fun load() {
         val collator = Collator.getInstance()
-        apps = la.getActivityList(null, Process.myUserHandle())
+        allApps = la.getActivityList(null, Process.myUserHandle())
             .filter { it.componentName.packageName != ctx.packageName }
             .map { AppEntry(it) }
             .sortedWith(compareBy(collator) { it.sortKey })
+        applyHidden()
         icons.clear(); monos.clear(); colors.clear()
     }
 
+    fun applyHidden() {
+        val hidden = prefs.hiddenApps
+        apps = allApps.filter { it.key !in hidden }
+    }
+
     fun find(pkg: String, cls: String): AppEntry? =
-        apps.firstOrNull { it.pkg == pkg && it.cls == cls } ?: apps.firstOrNull { it.pkg == pkg }
+        allApps.firstOrNull { it.pkg == pkg && it.cls == cls } ?: allApps.firstOrNull { it.pkg == pkg }
 
     fun find(t: TileSpec): AppEntry? = if (t.kind == TileKind.APP) find(t.pkg, t.cls) else null
 
     fun icon(e: AppEntry): Drawable = icons.getOrPut(e.key) {
-        e.info.getIcon(ctx.resources.displayMetrics.densityDpi)
+        pack?.icon(e.component) ?: e.info.getIcon(ctx.resources.displayMetrics.densityDpi)
     }
 
     /** Capa monocromática de los íconos temáticos (Android 13+), teñida de blanco. */
     fun mono(e: AppEntry): Drawable? {
         if (Build.VERSION.SDK_INT < 33) return null
+        if (pack?.has(e.component) == true) return null
         return monos.getOrPut(e.key) {
             val ic = icon(e) as? AdaptiveIconDrawable
             ic?.monochrome?.constantState?.newDrawable()?.mutate()?.also { it.setTint(Color.WHITE) }

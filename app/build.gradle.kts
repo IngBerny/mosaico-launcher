@@ -1,6 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// Clave de firma fija: así el teléfono acepta cada versión nueva encima de la anterior.
+val signing = Properties().apply {
+    val f = file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -11,16 +19,26 @@ android {
         applicationId = "com.ingberny.mosaico"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    signingConfigs {
+        create("mosaico") {
+            storeFile = file(signing.getProperty("storeFile", "mosaico-release.jks"))
+            storePassword = signing.getProperty("storePassword")
+            keyAlias = signing.getProperty("keyAlias")
+            keyPassword = signing.getProperty("keyPassword")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Firmado con la clave de depuración para poder instalarlo directamente.
-            // Cámbialo por tu propia clave si lo vas a publicar.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("mosaico")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("mosaico")
         }
     }
 

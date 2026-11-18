@@ -25,6 +25,8 @@ class TileGrid(ctx: Context, private val host: TileHost) : ViewGroup(ctx) {
         fun onTilesChanged()
         fun onEditModeChanged(editing: Boolean)
         fun scroller(): ScrollView?
+        fun onTileCustomize(t: TileSpec, v: TileView)
+        fun onLayoutLocked()
     }
 
     var listener: Listener? = null
@@ -35,7 +37,7 @@ class TileGrid(ctx: Context, private val host: TileHost) : ViewGroup(ctx) {
     private var placements: List<Placement> = emptyList()
     private val views = LinkedHashMap<String, TileView>()
     private var cell = 0f
-    private val gap = dp(5f)
+    private val gap = dp(when (host.prefs.tileGap) { 0 -> 2f; 2 -> 9f; else -> 5f })
     private val padH = dp(10f)
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
 
@@ -186,6 +188,7 @@ class TileGrid(ctx: Context, private val host: TileHost) : ViewGroup(ctx) {
         val r = dp(15f)
         drawCornerButton(canvas, v.right - dp(4f), v.top + dp(4f), r, G.UNPIN)
         drawCornerButton(canvas, v.right - dp(4f), v.bottom - dp(4f), r, G.RESIZE)
+        drawCornerButton(canvas, v.left + dp(4f), v.top + dp(4f), r, G.PALETTE)
     }
 
     private fun drawCornerButton(c: Canvas, x: Float, y: Float, r: Float, g: G) {
@@ -250,6 +253,7 @@ class TileGrid(ctx: Context, private val host: TileHost) : ViewGroup(ctx) {
                 val r = dp(26f)
                 if (hypot(x - (sv.right - dp(4f)), y - (sv.top + dp(4f))) < r) { removeTile(sel); return }
                 if (hypot(x - (sv.right - dp(4f)), y - (sv.bottom - dp(4f))) < r) { resize(sel); return }
+                if (hypot(x - (sv.left + dp(4f)), y - (sv.top + dp(4f))) < r) { listener?.onTileCustomize(sel, sv); return }
             }
             val v = tileAt(x, y)
             when {
@@ -274,6 +278,7 @@ class TileGrid(ctx: Context, private val host: TileHost) : ViewGroup(ctx) {
     private fun handleLongPress(x: Float, y: Float) {
         releaseTilt()
         val v = tileAt(x, y) ?: return
+        if (host.prefs.lockLayout) { listener?.onLayoutLocked(); return }
         performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         enterEdit(v.spec)
         startDrag(v, x, y)

@@ -13,10 +13,25 @@ class StartScreen(ctx: Context, host: TileHost, onAllApps: () -> Unit, onCustomi
     val grid = TileGrid(ctx, host)
     private val column = LinearLayout(ctx)
     private val footer = LinearLayout(ctx)
+    private val banner = LinearLayout(ctx)
+    var onBannerClick: (() -> Unit)? = null
 
     init {
         val pal = host.palette
         column.orientation = LinearLayout.VERTICAL
+
+        banner.orientation = LinearLayout.HORIZONTAL
+        banner.gravity = Gravity.CENTER_VERTICAL
+        banner.setBackgroundColor(pal.accent)
+        banner.setPadding(dpi(14), dpi(12), dpi(10), dpi(12))
+        banner.addView(ctx.label("Mosaico todavía no es tu pantalla de inicio", 14f, android.graphics.Color.WHITE),
+            LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        banner.addView(ctx.label("Establecer", 14f, android.graphics.Color.WHITE, Fonts.medium).apply { setPadding(dpi(10), 0, dpi(4), 0) })
+        banner.setOnClickListener { onBannerClick?.invoke() }
+        banner.visibility = View.GONE
+        column.addView(banner, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            setMargins(dpi(10), 0, dpi(10), dpi(10))
+        })
         column.addView(grid, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         footer.orientation = LinearLayout.HORIZONTAL
@@ -43,6 +58,7 @@ class StartScreen(ctx: Context, host: TileHost, onAllApps: () -> Unit, onCustomi
             setOnClickListener { onCustomize() }
         })
         column.addView(footer, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        if (!host.prefs.showFooter) footer.visibility = View.GONE
 
         scroll.addView(column, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         scroll.isVerticalScrollBarEnabled = false
@@ -57,6 +73,8 @@ class StartScreen(ctx: Context, host: TileHost, onAllApps: () -> Unit, onCustomi
     fun setInsets(top: Int, bottom: Int) {
         scroll.setPadding(0, top + dpi(8), 0, bottom)
     }
+
+    fun showBanner(show: Boolean) { banner.visibility = if (show) View.VISIBLE else View.GONE }
 
     fun scrollToTop() { scroll.smoothScrollTo(0, 0) }
     fun scrollToBottom() { scroll.post { scroll.smoothScrollTo(0, column.height) } }

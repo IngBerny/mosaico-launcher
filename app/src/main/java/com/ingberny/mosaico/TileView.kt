@@ -51,28 +51,33 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
 
     // ---------- color de fondo ----------
 
-    fun baseColor(): Int {
-        if (host.prefs.appColors && spec.kind == TileKind.APP) {
-            host.repo.find(spec)?.let { e -> host.repo.color(e)?.let { return it } }
-        }
-        return host.palette.accent
+    private fun appColor(): Int? = host.repo.find(spec)?.let { host.repo.color(it) }
+
+    fun baseColor(): Int = when (spec.color) {
+        TileSpec.COLOR_DEFAULT ->
+            (if (host.prefs.appColors && spec.kind == TileKind.APP) appColor() else null) ?: host.palette.accent
+        TileSpec.COLOR_APP -> appColor() ?: host.palette.accent
+        TileSpec.COLOR_ACCENT -> host.palette.accent
+        TileSpec.COLOR_TRANSPARENT -> Color.TRANSPARENT
+        else -> spec.color
     }
+
+    /** true si este mosaico tiene un color elegido a mano (no el automático). */
+    private val customColor get() = spec.color != TileSpec.COLOR_DEFAULT
 
     private fun drawBackground(c: Canvas, w: Float, h: Float) {
         val color = baseColor()
+        if (spec.color == TileSpec.COLOR_TRANSPARENT) {
+            if (host.prefs.bgMode == 1) host.backdrop()?.let { drawBackdrop(c, it, w, h) }
+            return
+        }
         when (host.prefs.bgMode) {
             1 -> {
                 val b = host.backdrop()
                 if (b != null) {
-                    getLocationOnScreen(loc)
-                    val sw = resources.displayMetrics.widthPixels.toFloat()
-                    val k = b.width / max(1f, sw)
-                    src.set((loc[0] * k).toInt(), (loc[1] * k).toInt(),
-                        ((loc[0] + w) * k).toInt(), ((loc[1] + h) * k).toInt())
-                    dst.set(0f, 0f, w, h)
-                    c.drawBitmap(b, src, dst, bmpPaint)
-                    fill.color = if (host.prefs.appColors && spec.kind == TileKind.APP) withAlpha(color, 150)
-                    else withAlpha(Color.BLACK, 40)
+                    drawBackdrop(c, b, w, h)
+                    val tinted = customColor || (host.prefs.appColors && spec.kind == TileKind.APP)
+                    fill.color = if (tinted) withAlpha(color, 150) else withAlpha(Color.BLACK, 40)
                     c.drawRect(0f, 0f, w, h, fill)
                 } else {
                     fill.color = color; c.drawRect(0f, 0f, w, h, fill)
@@ -84,6 +89,15 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
                 c.drawRect(0f, 0f, w, h, fill)
             }
         }
+    }
+
+    private fun drawBackdrop(c: Canvas, b: Bitmap, w: Float, h: Float) {
+        getLocationOnScreen(loc)
+        val sw = resources.displayMetrics.widthPixels.toFloat()
+        val k = b.width / max(1f, sw)
+        src.set((loc[0] * k).toInt(), (loc[1] * k).toInt(), ((loc[0] + w) * k).toInt(), ((loc[1] + h) * k).toInt())
+        dst.set(0f, 0f, w, h)
+        c.drawBitmap(b, src, dst, bmpPaint)
     }
 
     // ---------- texto ----------
@@ -109,8 +123,10 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
 
     private val pad get() = dp(8f)
 
+    private val labelHidden get() = spec.hideLabel || host.prefs.hideLabels
+
     private fun bottomLabel(c: Canvas, s: String, w: Float, h: Float, right: String? = null) {
-        if (spec.size == TileSize.SMALL) return
+        if (spec.size == TileSize.SMALL || labelHidden) return
         val maxW = if (right != null) w - pad * 2 - dp(36f) else w - pad * 2
         text(c, s, pad, h - dp(8f), 12f, Fonts.regular, maxW = maxW)
         if (right != null) text(c, right, w - pad, h - dp(8f), 12f, Fonts.regular, Paint.Align.RIGHT)
@@ -145,14 +161,15 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
         if (e == null) {
             text(c, "?", w / 2, h / 2 + sp(10f), 28f, Fonts.light, Paint.Align.CENTER); return
         }
-        val size = when (spec.size) {
+        val scale = host.prefs.iconScale.coerceIn(60, 140) / 100f
+        val size = scale * when (spec.size) {
             TileSize.SMALL -> min(w, h) * 0.56f
             TileSize.MEDIUM -> w * 0.38f
             TileSize.WIDE -> h * 0.38f
             TileSize.LARGE -> w * 0.24f
         }
         val cx = w / 2
-        val cy = if (spec.size == TileSize.SMALL) h / 2 else h / 2 - dp(4f)
+        val cy = if (spec.size == TileSize.SMALL || labelHidden) h / 2 else h / 2 - dp(4f)
         drawIcon(c, e, cx, cy, size)
         val count = host.live.badges[e.pkg] ?: 0
         val badge = if (count > 99) "99+" else count.toString()
@@ -163,7 +180,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
                 text(c, badge, cx + size / 2 + dp(6f), cy - size / 2 + sp(20f), 22f, Fonts.light)
             }
         }
-        bottomLabel(c, e.label, w, h)
+        bottomLabel(c, spec.label ?: e.label, w, h)
     }
 
     private fun drawCalendar(c: Canvas, w: Float, h: Float) {
@@ -232,10 +249,10 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             TileSize.MEDIUM -> if (face == 0) {
                 Glyphs.draw(c, wd.glyph, w / 2, h * 0.32f, w * 0.38f, Color.WHITE)
                 text(c, deg(wd.temp), w / 2, h * 0.32f + w * 0.2f + sp(30f), 30f, Fonts.light, Paint.Align.CENTER)
-                bottomLabel(c, wd.city.ifEmpty { "Clima" }, w, h)
+                bottomLabel(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), w, h)
             } else {
                 var y = pad
-                y += multiline(c, wd.city.ifEmpty { "Clima" }, pad, y, w - pad * 2, 15f, 1, Fonts.medium)
+                y += multiline(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), pad, y, w - pad * 2, 15f, 1, Fonts.medium)
                 y += multiline(c, wd.description, pad, y + dp(2f), w - pad * 2, 13f, 2, Fonts.regular, 220) + dp(6f)
                 text(c, "↑ ${deg(wd.hi)}   ↓ ${deg(wd.lo)}", pad, y + sp(14f), 14f, Fonts.light)
             }
@@ -259,8 +276,8 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             multiline(c, wd.description, rx, h / 2 - sp(22f), rw, 14f, 2, Fonts.regular)
             text(c, "↑ ${deg(wd.hi)}  ↓ ${deg(wd.lo)}", rx, h / 2 + sp(22f), 13f, Fonts.regular, maxW = rw, alpha = 220)
         }
-        if (spec.size == TileSize.WIDE) bottomLabel(c, wd.city.ifEmpty { "Clima" }, w, h)
-        else text(c, wd.city.ifEmpty { "Clima" }, pad, pad + sp(16f), 16f, Fonts.medium, maxW = w - pad * 2)
+        if (spec.size == TileSize.WIDE) bottomLabel(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), w, h)
+        else text(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), pad, pad + sp(16f), 16f, Fonts.medium, maxW = w - pad * 2)
     }
 
     private fun drawForecast(c: Canvas, wd: WeatherData, w: Float, h: Float, top: Float, bottom: Float) {
@@ -274,14 +291,14 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             Glyphs.draw(c, Glyphs.forWeather(d.code, true), cx, top + sp(22f) + gSize / 2 + dp(4f), gSize, Color.WHITE)
             text(c, "${deg(d.hi)} ${deg(d.lo)}", cx, top + sp(22f) + gSize + dp(8f) + sp(13f), 13f, Fonts.light, Paint.Align.CENTER)
         }
-        if (spec.size == TileSize.WIDE) bottomLabel(c, wd.city.ifEmpty { "Clima" }, w, h)
+        if (spec.size == TileSize.WIDE) bottomLabel(c, (spec.label ?: wd.city.ifEmpty { "Clima" }), w, h)
     }
 
     private fun drawPhotos(c: Canvas, w: Float, h: Float) {
         val photos = host.live.photos
         if (photos.isEmpty()) {
             Glyphs.draw(c, G.PHOTO, w / 2, h / 2 - dp(4f), min(w, h) * 0.42f, Color.WHITE)
-            bottomLabel(c, "Fotos", w, h)
+            bottomLabel(c, spec.label ?: "Fotos", w, h)
             return
         }
         if (prevPhoto in photos.indices && photoFade < 1f) drawCrop(c, photos[prevPhoto], w, h, 255)
@@ -290,7 +307,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
             fill.color = withAlpha(Color.BLACK, 70)
             c.drawRect(0f, h - dp(26f), w, h, fill)
         }
-        bottomLabel(c, "Fotos", w, h)
+        bottomLabel(c, spec.label ?: "Fotos", w, h)
     }
 
     private fun drawCrop(c: Canvas, b: Bitmap, w: Float, h: Float, alpha: Int) {
@@ -315,7 +332,7 @@ class TileView(ctx: Context, val spec: TileSpec, private val host: TileHost) : V
         val g = min(w, h) * 0.3f
         Glyphs.draw(c, if (host.live.charging) G.BOLT else G.BATTERY, pad + g / 2, pad + g / 2, g, Color.WHITE)
         text(c, txt, pad, h / 2 + sp(22f), 40f, Fonts.light)
-        bottomLabel(c, if (host.live.charging) "Cargando" else "Batería", w, h)
+        bottomLabel(c, spec.label ?: if (host.live.charging) "Cargando" else "Batería", w, h)
     }
 
     // ---------- animaciones vivas ----------
