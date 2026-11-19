@@ -15,7 +15,8 @@ enum class G {
     SUN, MOON, PARTLY_DAY, PARTLY_NIGHT, CLOUD, FOG, DRIZZLE, RAIN, SNOW, STORM,
     WIFI, BLUETOOTH, AIRPLANE, FLASHLIGHT, LOCATION, ROTATION, QUIET, BATTERY, DATA,
     HOTSPOT, CAMERA, SETTINGS, SEARCH, PIN, UNPIN, RESIZE, CLOSE, CHEVRON_DOWN,
-    CHEVRON_UP, ARROW_RIGHT, PHOTO, CALENDAR, BOLT, CHECK, MORE, PALETTE, ARROW_LEFT, START
+    CHEVRON_UP, ARROW_RIGHT, PHOTO, CALENDAR, BOLT, CHECK, MORE, PALETTE, ARROW_LEFT, START,
+    LOCK, SCREENSHOT, VOLUME, BRIGHTNESS
 }
 
 object Glyphs {
@@ -209,6 +210,25 @@ object Glyphs {
                 p.style = Paint.Style.STROKE
             }
             G.CHECK -> poly(false, -0.3f, 0.02f, -0.08f, 0.24f, 0.32f, -0.2f)
+            G.LOCK -> {
+                box(-0.28f, -0.04f, 0.28f, 0.38f)
+                arc(0f, -0.12f, 0.17f, 180f, 180f)
+                ln(-0.17f, -0.12f, -0.17f, -0.04f); ln(0.17f, -0.12f, 0.17f, -0.04f)
+                ln(0f, 0.1f, 0f, 0.22f)
+            }
+            G.SCREENSHOT -> {
+                poly(false, -0.38f, -0.18f, -0.38f, -0.38f, -0.18f, -0.38f)
+                poly(false, 0.18f, -0.38f, 0.38f, -0.38f, 0.38f, -0.18f)
+                poly(false, 0.38f, 0.18f, 0.38f, 0.38f, 0.18f, 0.38f)
+                poly(false, -0.18f, 0.38f, -0.38f, 0.38f, -0.38f, 0.18f)
+                circ(0f, 0f, 0.1f)
+            }
+            G.VOLUME -> {
+                poly(true, -0.38f, -0.1f, -0.22f, -0.1f, 0f, -0.3f, 0f, 0.3f, -0.22f, 0.1f, -0.38f, 0.1f)
+                arc(0f, 0f, 0.18f, -45f, 90f)
+                arc(0f, 0f, 0.32f, -45f, 90f)
+            }
+            G.BRIGHTNESS -> sun(0f, 0f, 1.1f)
             G.BOLT -> poly(true, 0.06f, -0.4f, -0.2f, 0.06f, 0f, 0.06f, -0.06f, 0.4f, 0.2f, -0.06f, 0f, -0.06f)
         }
     }

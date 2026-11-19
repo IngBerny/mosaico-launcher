@@ -51,6 +51,20 @@ Live Tiles, lista de apps alfabética y Centro de actividades.
   (PIN, patrón o huella), así que la seguridad no cambia. No aparece durante las llamadas.
 - Dentro de Mosaico, la barra de estado de Android también se reemplaza por la de Mosaico.
 
+**Personalizar todo, al estilo Nova** (Personalizar está organizado por secciones)
+- **Barra de estado:** fondo (automático, transparente, negro, tema, énfasis o cualquier color), color de íconos y texto,
+  qué mostrar (señal, Wi-Fi, modos, contador de notificaciones, ícono y porcentaje de batería, hora), posición de la hora
+  (derecha, centro o izquierda), tamaño del texto y qué pasa al tocarla o deslizarla.
+- **Centro de actividades propio** (no usa el panel de Android): eliges qué botones aparecen y en qué orden, de 3 a 6 columnas,
+  cuántas filas se ven contraído, abrir siempre expandido, con o sin nombres, esquinas, color y opacidad del panel, color de los
+  botones encendidos, barra de brillo, encabezado, notificaciones agrupadas por app o en orden de llegada y tamaño del texto.
+  Botones nuevos: bloquear pantalla, captura de pantalla, volumen y brillo automático.
+- **Pantalla de bloqueo:** tamaño y posición de la hora, fecha, próximo evento, notificaciones y oscurecido del fondo.
+- **Gestos:** deslizar hacia abajo y doble toque en Inicio, y tocar o deslizar la barra de estado. Cada uno puede abrir el
+  Centro de actividades, el panel o los ajustes rápidos de Android, la lista de apps, la búsqueda, bloquear la pantalla,
+  las apps recientes o Personalizar.
+- **Copia de seguridad:** exporta e importa todos tus ajustes y el diseño de Inicio en un archivo, o restablece todo.
+
 **Launcher predeterminado**
 - Al abrirlo por primera vez aparece el diálogo de Android "¿Usar Mosaico como app de inicio?".
 - Si todavía no es el predeterminado, Inicio muestra un aviso con el botón "Establecer".
@@ -83,7 +97,9 @@ versión se instale encima de la anterior. Si algún día publicas la app en Goo
 - Toca los mosaicos de Calendario, Clima y Fotos para darles permiso. Para el clima también puedes escribir tu ciudad.
 
 ## Limitaciones de Android
-- La pantalla de bloqueo, la barra de estado y la barra de navegación son del sistema; un launcher no las puede reemplazar.
+- Android no deja que ninguna app (tampoco Nova) borre su barra de estado, su panel ni su bloqueo. Mosaico los **tapa** con los
+  suyos mediante el servicio de accesibilidad; los de Android siguen existiendo debajo (por ejemplo, si deslizas desde el borde
+  en una app a pantalla completa).
 - Los íconos son los de cada app. Con "Íconos monocromáticos", las apps compatibles muestran su versión blanca, como en W10M.
 - La rotación y "horas de silencio" necesitan permisos especiales que la app te pide la primera vez.
 

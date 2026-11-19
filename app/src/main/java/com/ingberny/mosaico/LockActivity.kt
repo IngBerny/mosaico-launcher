@@ -49,7 +49,7 @@ class LockActivity : Activity(), TileHost {
 
     private lateinit var root: FrameLayout
     private lateinit var sheet: FrameLayout
-    private val time = lazy { label("", 92f, Color.WHITE, Fonts.thin) }
+    private val time = lazy { label("", listOf(70f, 92f, 120f)[prefs.lockClockSize.coerceIn(0, 2)], Color.WHITE, Fonts.thin) }
     private val date = lazy { label("", 24f, Color.WHITE, Fonts.light) }
     private val event = lazy { label("", 16f, Color.WHITE, Fonts.regular) }
     private lateinit var notifRow: NotifIcons
@@ -86,19 +86,23 @@ class LockActivity : Activity(), TileHost {
         loadBackground()?.let { img.setImageBitmap(it) } ?: img.setBackgroundColor(
             if (prefs.lockBg == 3) Color.BLACK else palette.accent)
         sheet.addView(img, FrameLayout.LayoutParams(-1, -1))
-        sheet.addView(Scrim(this), FrameLayout.LayoutParams(-1, -1))
+        sheet.addView(Scrim(this, prefs.lockDim), FrameLayout.LayoutParams(-1, -1))
 
-        // Hora, fecha, próximo evento y notificaciones abajo a la izquierda, como en el original.
+        // Hora, fecha, próximo evento y notificaciones: abajo a la izquierda como en el original, o centrados arriba.
+        val centered = prefs.lockClockPos == 1
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dpi(24), 0, dpi(24), dpi(56))
+            if (centered) gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dpi(24), if (centered) dpi(96) else 0, dpi(24), dpi(56))
         }
         col.addView(event.value.apply { maxLines = 2; setPadding(dpi(4), 0, 0, dpi(6)) })
         col.addView(time.value.apply { setPadding(0, 0, 0, 0) })
         col.addView(date.value.apply { setPadding(dpi(4), dpi(2), 0, dpi(18)) })
+        if (!prefs.lockShowDate) date.value.visibility = View.GONE
+        if (centered) listOf(event.value, time.value, date.value).forEach { it.gravity = Gravity.CENTER_HORIZONTAL }
         notifRow = NotifIcons(this)
         col.addView(notifRow, LinearLayout.LayoutParams(-1, dpi(40)))
-        sheet.addView(col, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        sheet.addView(col, FrameLayout.LayoutParams(-1, -2, if (centered) Gravity.TOP else Gravity.BOTTOM))
         sheet.addView(GlyphView(this, G.CHEVRON_UP, withAlpha(Color.WHITE, 180), 0.6f),
             FrameLayout.LayoutParams(dpi(36), dpi(36), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dpi(14) })
 
@@ -162,7 +166,7 @@ class LockActivity : Activity(), TileHost {
     }
 
     private fun loadEvent() {
-        if (checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) {
+        if (!prefs.lockShowEvent || checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) {
             event.value.visibility = View.GONE; return
         }
         Thread {
@@ -229,12 +233,16 @@ class LockActivity : Activity(), TileHost {
     // ---------- piezas ----------
 
     /** Oscurece la parte de abajo para que el texto se lea sobre cualquier foto. */
-    private class Scrim(ctx: Context) : View(ctx) {
+    private class Scrim(ctx: Context, private val dim: Int) : View(ctx) {
         private val p = Paint()
+        private val flat = Paint().apply { color = withAlpha(Color.BLACK, dim.coerceIn(0, 80) * 255 / 100) }
         override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
             p.shader = LinearGradient(0f, h * 0.4f, 0f, h.toFloat(), Color.TRANSPARENT, 0xAA000000.toInt(), Shader.TileMode.CLAMP)
         }
-        override fun onDraw(c: Canvas) { c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), p) }
+        override fun onDraw(c: Canvas) {
+            c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), flat)
+            c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), p)
+        }
     }
 
     /** Íconos de las apps con notificaciones y su contador, como en el bloqueo de Windows Phone. */

@@ -93,6 +93,24 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         updateBadges()
         loadIconPack()
         if (intent?.getBooleanExtra(NavBarView.EXTRA_SEARCH, false) == true) root.post { openSearch() }
+        intent?.getStringExtra(SysActions.EXTRA_OPEN)?.let { what -> root.post { openFromExtra(what) } }
+    }
+
+    /** Lista de apps o búsqueda pedidas desde un gesto fuera de Mosaico (barra de estado del servicio). */
+    private fun openFromExtra(what: String) {
+        if (what == "search") openSearch() else { start.grid.exitEdit(); pager.goTo(1) }
+    }
+
+    /** Ejecuta la acción asignada a un gesto (Personalizar → Gestos). */
+    private fun runGesture(id: Int) {
+        when (id) {
+            SysActions.ACTION_CENTER -> action.open()
+            SysActions.APPS -> { start.grid.exitEdit(); pager.goTo(1) }
+            SysActions.SEARCH -> openSearch()
+            SysActions.SETTINGS -> openSettings()
+            SysActions.NONE -> {}
+            else -> SysActions.runSystem(this, id)
+        }
     }
 
     private fun loadIconPack() {
@@ -152,6 +170,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra(NavBarView.EXTRA_SEARCH, false)) { openSearch(); return }
+        val extra = intent.getStringExtra(SysActions.EXTRA_OPEN)
+        if (extra != null) { openFromExtra(extra); return }
         goHomeState()
     }
 
@@ -204,6 +224,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         start.grid.listener = this
         start.grid.setTiles(tiles)
         start.scroll.onPullDown = { onPullDown() }
+        start.scroll.onDoubleTap = if (prefs.gestureDoubleTap == SysActions.NONE) null
+            else ({ if (!start.grid.editing) runGesture(prefs.gestureDoubleTap) })
         start.onBannerClick = { DefaultHome.request(this) }
 
         appList = AppListView(this, this, this)
@@ -227,8 +249,9 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         val statusH = resources.getIdentifier("status_bar_height", "dimen", "android")
             .let { if (it > 0) resources.getDimensionPixelSize(it) else dpi(24) }
         if (ownStatus) {
-            statusBar = StatusBarView(this, opaque = false) { action.open() }.also {
-                it.fg = if (!palette.dark && prefs.bgMode != 0) Color.BLACK else Color.WHITE
+            statusBar = StatusBarView(this, opaque = false,
+                onOpen = { runGesture(prefs.statusSwipe) }, onTap = { runGesture(prefs.statusTap) }).also {
+                it.applyTheme(prefs, if (!palette.dark && prefs.bgMode != 0) Color.BLACK else Color.WHITE)
                 root.addView(it, root.indexOfChild(action), FrameLayout.LayoutParams(-1, statusH, android.view.Gravity.TOP))
             }
         }
@@ -336,15 +359,11 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     private fun onPullDown() {
-        if (prefs.swipeDown == 1) {
-            try {
-                @Suppress("WrongConstant")
-                val sb = getSystemService("statusbar")
-                Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(sb)
-                return
-            } catch (e: Throwable) { }
-        }
-        action.open()
+        val id = prefs.swipeDown
+        // Si el panel de Android no se puede abrir en este teléfono, se usa el Centro de actividades de Mosaico.
+        if (id == SysActions.ANDROID_PANEL || id == SysActions.ANDROID_QUICK) {
+            if (!SysActions.runSystem(this, id)) action.open()
+        } else runGesture(id)
     }
 
     // ---------- mosaicos ----------

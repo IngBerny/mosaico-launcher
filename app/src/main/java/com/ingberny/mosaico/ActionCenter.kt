@@ -42,6 +42,10 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
     private class Toggle(val label: String, val glyph: G, val state: () -> Boolean, val action: () -> Unit)
 
     private val pal = host.palette
+    private val prefs = host.prefs
+    private val panelColor = when (prefs.acBg) { 1 -> Color.BLACK; 2 -> prefs.acBgCustom; else -> pal.bg }
+    private val onColor = if (prefs.acOnMode == 1) prefs.acOnCustom else pal.accent
+    private val textScale = prefs.acTextScale / 100f
     private val scroll = ScrollView(ctx)
     private val content = LinearLayout(ctx)
     private val clock = ctx.label("", 40f, pal.fg, Fonts.light)
@@ -51,17 +55,21 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
     private val expandLabel = ctx.label("", 15f, pal.accent, Fonts.regular)
     private val notifBox = LinearLayout(ctx)
     private val handle = View(ctx)
-    private var expanded = false
+    private var expanded = prefs.acStartExpanded
     private var torchOn = false
     private var torchId: String? = null
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
     private var downX = 0f
     private var downY = 0f
 
-    private val toggles: List<Toggle> by lazy { buildToggles() }
+    /** Botones elegidos en Personalizar, en su orden. */
+    private val toggles: List<Toggle> by lazy {
+        val all = buildToggles()
+        prefs.acToggles.mapNotNull { all[it] }
+    }
 
     init {
-        setBackgroundColor(withAlpha(pal.bg, 245))
+        setBackgroundColor(withAlpha(panelColor, prefs.acOpacity.coerceIn(30, 100) * 255 / 100))
         isClickable = true
         visibility = View.GONE
 
@@ -80,17 +88,18 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
                 addView(battery); addView(date)
             })
         }
-        content.addView(header)
+        if (prefs.acHeader) content.addView(header)
 
         togglesBox.orientation = LinearLayout.VERTICAL
         content.addView(togglesBox)
+        if (prefs.acBrightness) content.addView(brightnessRow())
 
         val links = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dpi(6), dpi(10), dpi(6), dpi(10))
             addView(expandLabel.apply { setOnClickListener { expanded = !expanded; renderToggles() } },
                 LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            addView(ctx.label("Panel de Android", 15f, pal.sub, Fonts.regular).apply {
+            if (prefs.acAndroidLink) addView(ctx.label("Panel de Android", 15f, pal.sub, Fonts.regular).apply {
                 setOnClickListener {
                     close()
                     val svc = NavService.instance
@@ -212,9 +221,9 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
         }
     }
 
-    private fun buildToggles(): List<Toggle> {
+    private fun buildToggles(): Map<String, Toggle> {
         val ctx = context
-        return listOf(
+        val base = listOf(
             Toggle("Wi-Fi", G.WIFI, {
                 try { ctx.applicationContext.getSystemService(WifiManager::class.java).isWifiEnabled } catch (e: Exception) { false }
             }) { start(Intent(Settings.Panel.ACTION_WIFI)) },
@@ -270,24 +279,97 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
             Toggle("Cámara", G.CAMERA, { false }) { start(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) },
             Toggle("Toda la configuración", G.SETTINGS, { false }) { start(Intent(Settings.ACTION_SETTINGS)) },
         )
+        val map = LinkedHashMap<String, Toggle>()
+        Prefs.DEFAULT_TOGGLES.forEachIndexed { i, id -> map[id] = base[i] }
+        map["lock"] = Toggle("Bloquear", G.LOCK, { false }) {
+            close()
+            Handler(Looper.getMainLooper()).postDelayed({ SysActions.runSystem(ctx, SysActions.LOCK) }, 350)
+        }
+        map["screenshot"] = Toggle("Captura", G.SCREENSHOT, { false }) {
+            close()
+            // Se espera a que el panel se cierre para que no salga en la captura.
+            Handler(Looper.getMainLooper()).postDelayed({ SysActions.screenshot(ctx) }, 700)
+        }
+        map["volume"] = Toggle("Volumen", G.VOLUME, { false }) {
+            try {
+                ctx.getSystemService(android.media.AudioManager::class.java).adjustStreamVolume(
+                    android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_SAME,
+                    android.media.AudioManager.FLAG_SHOW_UI)
+            } catch (e: Exception) { }
+        }
+        map["autobright"] = Toggle("Brillo automático", G.BRIGHTNESS, {
+            Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, 0) ==
+                Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+        }) {
+            if (canWriteSettings()) {
+                val auto = Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, 0) ==
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+                Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    if (auto) Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL else Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
+                renderToggles()
+            }
+        }
+        return map
+    }
+
+    /** Pide el permiso de modificar ajustes si falta. */
+    private fun canWriteSettings(): Boolean {
+        if (Settings.System.canWrite(context)) return true
+        Toast.makeText(context, "Permite a Mosaico modificar los ajustes del sistema", Toast.LENGTH_LONG).show()
+        start(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, android.net.Uri.parse("package:${context.packageName}")))
+        return false
+    }
+
+    /** Barra de brillo, como en el Centro de actividades de Windows 10 Mobile. */
+    private fun brightnessRow(): View {
+        val ctx = context
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpi(4), dpi(10), dpi(4), dpi(2))
+        }
+        row.addView(GlyphView(ctx, G.BRIGHTNESS, pal.fg, 0.7f), LinearLayout.LayoutParams(dpi(30), dpi(30)))
+        val bar = android.widget.SeekBar(ctx).apply {
+            max = 255
+            progress = try { Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) } catch (e: Exception) { 128 }
+            progressTintList = android.content.res.ColorStateList.valueOf(onColor)
+            thumbTintList = android.content.res.ColorStateList.valueOf(pal.fg)
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(pal.toggleOff)
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: android.widget.SeekBar?, v: Int, fromUser: Boolean) {
+                    if (!fromUser || !Settings.System.canWrite(ctx)) return
+                    Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                        Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+                    Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS, v.coerceAtLeast(1))
+                }
+                override fun onStartTrackingTouch(sb: android.widget.SeekBar?) { canWriteSettings() }
+                override fun onStopTrackingTouch(sb: android.widget.SeekBar?) { renderToggles() }
+            })
+        }
+        row.addView(bar, LinearLayout.LayoutParams(0, -2, 1f))
+        return row
     }
 
     private fun renderToggles() {
         togglesBox.removeAllViews()
-        val shown = if (expanded) toggles else toggles.take(4)
-        shown.chunked(4).forEach { chunk ->
+        val cols = prefs.acColumns.coerceIn(3, 6)
+        val collapsed = cols * prefs.acRows.coerceIn(1, 4)
+        val shown = if (expanded) toggles else toggles.take(collapsed)
+        val tileH = if (prefs.acLabels) dpi(if (cols >= 5) 70 else 78) else dpi(if (cols >= 5) 52 else 60)
+        shown.chunked(cols).forEach { chunk ->
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            for (i in 0 until 4) {
+            for (i in 0 until cols) {
                 val t = chunk.getOrNull(i)
                 val v: View = if (t == null) View(context) else ToggleView(context, t.label, t.glyph,
                     try { t.state() } catch (e: Exception) { false }).apply {
                     setOnClickListener { t.action(); postDelayed({ if (isOpen) renderToggles() }, 400) }
                 }
-                row.addView(v, LinearLayout.LayoutParams(0, dpi(78), 1f).apply { setMargins(dpi(2), dpi(2), dpi(2), dpi(2)) })
+                row.addView(v, LinearLayout.LayoutParams(0, tileH, 1f).apply { setMargins(dpi(2), dpi(2), dpi(2), dpi(2)) })
             }
             togglesBox.addView(row)
         }
         expandLabel.text = if (expanded) "Contraer ⌃" else "Expandir ⌄"
+        expandLabel.visibility = if (toggles.size > collapsed) View.VISIBLE else View.INVISIBLE
     }
 
     private inner class ToggleView(ctx: Context, val text: String, val glyph: G, val on: Boolean) : View(ctx) {
@@ -295,9 +377,11 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
         private val tp = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG)
         override fun onDraw(c: Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
-            p.color = if (on) pal.accent else pal.toggleOff
-            c.drawRect(0f, 0f, w, h, p)
-            val fg = if (on) Color.WHITE else pal.fg
+            p.color = if (on) onColor else pal.toggleOff
+            val rad = dp(prefs.acRadius.toFloat())
+            c.drawRoundRect(0f, 0f, w, h, rad, rad, p)
+            val fg = if (on) (if (Color.luminance(onColor) > 0.6f) Color.BLACK else Color.WHITE) else pal.fg
+            if (!prefs.acLabels) { Glyphs.draw(c, glyph, w / 2f, h / 2f, dp(24f), fg); return }
             Glyphs.draw(c, glyph, dp(20f), dp(20f), dp(22f), fg)
             tp.color = fg; tp.textSize = sp(12f); tp.typeface = Fonts.regular
             val s = TextUtils.ellipsize(text, tp, w - dp(12f), TextUtils.TruncateAt.END).toString()
@@ -333,9 +417,14 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
         notifBox.addView(bar)
 
         val pm = context.packageManager
+        fun appLabel(pkg: String) = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
+        if (!prefs.acGroupNotifs) {
+            items.forEach { notifBox.addView(NotifRow(context, it, appLabel(it.packageName))) }
+            return
+        }
         items.groupBy { it.packageName }.forEach { (pkg, list) ->
-            val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
-            notifBox.addView(context.label(appName, 19f, pal.fg, Fonts.medium).apply {
+            val appName = appLabel(pkg)
+            notifBox.addView(context.label(appName, 19f * textScale, pal.fg, Fonts.medium).apply {
                 setPadding(dpi(6), dpi(18), dpi(6), dpi(6))
             })
             notifBox.addView(View(context).apply { setBackgroundColor(pal.line) },
@@ -344,7 +433,7 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
         }
     }
 
-    private inner class NotifRow(ctx: Context, val sbn: StatusBarNotification) : LinearLayout(ctx) {
+    private inner class NotifRow(ctx: Context, val sbn: StatusBarNotification, appName: String? = null) : LinearLayout(ctx) {
         private var sx = 0f
         private var swiping = false
 
@@ -354,15 +443,18 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
             val ex = sbn.notification.extras
             val title = ex.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
             val body = (ex.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: ex.getCharSequence(Notification.EXTRA_TEXT))?.toString() ?: ""
+            if (appName != null) addView(ctx.label(appName.uppercase(), 11f * textScale, onColor, Fonts.medium).apply {
+                setPadding(0, 0, 0, dpi(3))
+            })
             val top = LinearLayout(ctx).apply {
                 orientation = HORIZONTAL
-                addView(ctx.label(title, 16f, pal.fg, Fonts.regular).apply {
+                addView(ctx.label(title, 16f * textScale, pal.fg, Fonts.regular).apply {
                     isSingleLine = true; ellipsize = TextUtils.TruncateAt.END
                 }, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-                addView(ctx.label(android.text.format.DateFormat.getTimeFormat(ctx).format(Date(sbn.postTime)), 13f, pal.sub))
+                addView(ctx.label(android.text.format.DateFormat.getTimeFormat(ctx).format(Date(sbn.postTime)), 13f * textScale, pal.sub))
             }
             addView(top)
-            if (body.isNotEmpty()) addView(ctx.label(body, 14f, pal.sub, Fonts.regular).apply {
+            if (body.isNotEmpty()) addView(ctx.label(body, 14f * textScale, pal.sub, Fonts.regular).apply {
                 maxLines = 3; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dpi(3), 0, 0)
             })
             setOnClickListener { openNotification(sbn) }

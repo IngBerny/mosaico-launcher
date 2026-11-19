@@ -109,6 +109,16 @@ class Pager(ctx: Context) : FrameLayout(ctx) {
 /** ScrollView que avisa cuando se desliza hacia abajo estando arriba del todo. */
 class PullScrollView(ctx: Context) : ScrollView(ctx) {
     var onPullDown: (() -> Unit)? = null
+    /** Doble toque en Inicio (gesto configurable). */
+    var onDoubleTap: (() -> Unit)? = null
+    private val taps = android.view.GestureDetector(ctx, object : android.view.GestureDetector.SimpleOnGestureListener() {
+        override fun onDoubleTap(e: MotionEvent): Boolean { onDoubleTap?.invoke(); return onDoubleTap != null }
+    })
+
+    override fun dispatchTouchEvent(e: MotionEvent): Boolean {
+        if (onDoubleTap != null) taps.onTouchEvent(e)
+        return super.dispatchTouchEvent(e)
+    }
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
     private var downX = 0f
     private var downY = 0f

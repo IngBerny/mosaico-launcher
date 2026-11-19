@@ -168,7 +168,8 @@ class NavService : AccessibilityService() {
             }
             ins
         }
-        val s = StatusBarView(this, opaque = true) { openActionCenter() }
+        val s = StatusBarView(this, opaque = true,
+            onOpen = { runStatusAction(prefs.statusSwipe) }, onTap = { runStatusAction(prefs.statusTap) })
         s.applyTheme(prefs)
         val slp = overlayParams(statusHeight(), Gravity.TOP)
         try { wm.addView(n, nlp); nav = n; navLp = nlp } catch (e: Exception) { nav = null }
@@ -207,6 +208,10 @@ class NavService : AccessibilityService() {
 
         val sh = statusHeight()
         setShown(status, statusLp, base && prefs.statusSystem && !statusHiddenByApp && sh > 0, sh)
+    }
+
+    private fun runStatusAction(id: Int) {
+        if (id == SysActions.ACTION_CENTER) openActionCenter() else SysActions.run(this, id)
     }
 
     private fun openActionCenter() {

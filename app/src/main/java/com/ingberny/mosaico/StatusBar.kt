@@ -59,9 +59,15 @@ class StatusInfo(
 
 /**
  * Barra de estado al estilo Windows 10 Mobile: señal, Wi-Fi y modos a la izquierda;
- * batería y hora a la derecha. Tocarla o deslizarla hacia abajo abre el Centro de actividades.
+ * batería y hora a la derecha. Todo se puede configurar en Personalizar → Barra de estado.
+ * [onOpen] se llama al deslizarla hacia abajo y [onTap] al tocarla (si es null, también [onOpen]).
  */
-class StatusBarView(ctx: Context, private val opaque: Boolean, private val onOpen: () -> Unit) : View(ctx) {
+class StatusBarView(
+    ctx: Context,
+    private val opaque: Boolean,
+    private val onOpen: () -> Unit,
+    private val onTap: (() -> Unit)? = null,
+) : View(ctx) {
 
     private var info: StatusInfo = StatusInfo.read(ctx)
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -71,12 +77,51 @@ class StatusBarView(ctx: Context, private val opaque: Boolean, private val onOpe
     private var downY = 0f
     private var fired = false
     var fg = Color.WHITE
-    var bg = Color.BLACK
+    var bg = if (opaque) Color.BLACK else Color.TRANSPARENT
 
-    fun applyTheme(prefs: Prefs) {
+    private var showSignal = true
+    private var showWifi = true
+    private var showModes = true
+    private var showNotifs = true
+    private var showBattery = true
+    private var showPct = false
+    private var showClock = true
+    private var clockPos = 0
+    private var textScale = 1f
+
+    init { readOptions(Prefs(ctx)) }
+
+    private fun readOptions(prefs: Prefs) {
+        showSignal = prefs.sbSignal; showWifi = prefs.sbWifi; showModes = prefs.sbModes
+        showNotifs = prefs.sbNotifCount; showBattery = prefs.sbBatteryIcon; showPct = prefs.sbBatteryPct
+        showClock = prefs.sbClock; clockPos = prefs.sbClockPos; textScale = prefs.sbTextScale / 100f
+    }
+
+    /**
+     * Aplica colores y elementos. [autoFg] es el color automático del texto cuando la barra es transparente
+     * (dentro de Mosaico depende del fondo de Inicio).
+     */
+    fun applyTheme(prefs: Prefs, autoFg: Int? = null) {
         val pal = prefs.palette()
-        bg = when (prefs.navColor) { 1 -> pal.bg; 2 -> pal.accent; else -> Color.BLACK }
-        fg = if (prefs.navColor == 1 && !pal.dark) Color.BLACK else Color.WHITE
+        val barsColor = when (prefs.navColor) { 1 -> pal.bg; 2 -> pal.accent; else -> Color.BLACK }
+        bg = when (prefs.statusBg) {
+            0 -> Color.TRANSPARENT
+            1 -> Color.BLACK
+            2 -> pal.bg
+            3 -> pal.accent
+            4 -> prefs.statusBgCustom
+            else -> if (opaque) barsColor else Color.TRANSPARENT
+        }
+        val auto = if (Color.alpha(bg) < 128) (autoFg ?: Color.WHITE)
+            else if (Color.luminance(bg) > 0.55f) Color.BLACK else Color.WHITE
+        fg = when (prefs.statusFg) {
+            1 -> Color.WHITE
+            2 -> Color.BLACK
+            3 -> pal.accent
+            4 -> prefs.statusFgCustom
+            else -> auto
+        }
+        readOptions(prefs)
         invalidate()
     }
 
@@ -86,23 +131,32 @@ class StatusBarView(ctx: Context, private val opaque: Boolean, private val onOpe
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> { downY = e.y; fired = false }
             MotionEvent.ACTION_MOVE -> if (!fired && e.y - downY > slop) { fired = true; onOpen() }
-            MotionEvent.ACTION_UP -> if (!fired && abs(e.y - downY) < slop) { fired = true; onOpen() }
+            MotionEvent.ACTION_UP -> if (!fired && abs(e.y - downY) < slop) { fired = true; (onTap ?: onOpen).invoke() }
         }
         return true
     }
 
     override fun onDraw(c: Canvas) {
         val w = width.toFloat(); val h = height.toFloat()
-        if (opaque) c.drawColor(bg)
+        if (Color.alpha(bg) > 0) c.drawColor(bg)
         // Los íconos van en la franja inferior de la barra (debajo de la cámara en pantallas con muesca).
         val band = minOf(h, dp(24f))
         val cy = h - band / 2
         val s = band * 0.62f
         var x = dp(10f)
         p.style = Paint.Style.FILL
+        tp.textSize = sp(13f) * textScale
+        val textY = cy + tp.textSize * 0.36f
+
+        // Hora a la izquierda.
+        if (showClock && clockPos == 2) {
+            tp.textAlign = Paint.Align.LEFT; tp.color = fg
+            c.drawText(info.time, x, textY, tp)
+            x += tp.measureText(info.time) + dp(10f)
+        }
 
         // Señal: 5 barras crecientes, como en Windows Phone.
-        if (!info.airplane && info.signal >= 0) {
+        if (showSignal && !info.airplane && info.signal >= 0) {
             val bw = s * 0.13f; val gap = s * 0.08f
             for (i in 0 until 5) {
                 val bh = s * (0.3f + 0.175f * i)
@@ -113,35 +167,52 @@ class StatusBarView(ctx: Context, private val opaque: Boolean, private val onOpe
             }
             x += dp(6f)
         }
-        if (info.airplane) { Glyphs.draw(c, G.AIRPLANE, x + s / 2, cy, s, fg); x += s + dp(6f) }
-        if (info.wifi) { Glyphs.draw(c, G.WIFI, x + s / 2, cy + s * 0.08f, s, fg); x += s + dp(6f) }
-        if (info.quiet) { Glyphs.draw(c, G.QUIET, x + s / 2, cy, s * 0.9f, fg); x += s + dp(6f) }
-        if (info.notifications > 0) {
+        if (showModes && info.airplane) { Glyphs.draw(c, G.AIRPLANE, x + s / 2, cy, s, fg); x += s + dp(6f) }
+        if (showWifi && info.wifi) { Glyphs.draw(c, G.WIFI, x + s / 2, cy + s * 0.08f, s, fg); x += s + dp(6f) }
+        if (showModes && info.quiet) { Glyphs.draw(c, G.QUIET, x + s / 2, cy, s * 0.9f, fg); x += s + dp(6f) }
+        if (showNotifs && info.notifications > 0) {
             p.color = fg; p.style = Paint.Style.STROKE; p.strokeWidth = dp(1.3f)
             r.set(x, cy - s * 0.35f, x + s * 0.95f, cy + s * 0.3f); c.drawRect(r, p)
             p.style = Paint.Style.FILL
+            val keep = tp.textSize
             tp.textAlign = Paint.Align.CENTER; tp.textSize = s * 0.55f; tp.color = fg
             c.drawText(if (info.notifications > 9) "9+" else info.notifications.toString(), x + s * 0.475f, cy + s * 0.17f, tp)
+            tp.textSize = keep
             x += s + dp(6f)
         }
 
-        // Derecha: batería y hora.
-        tp.textAlign = Paint.Align.RIGHT; tp.textSize = sp(13f); tp.color = fg
-        val right = w - dp(10f)
-        c.drawText(info.time, right, cy + tp.textSize * 0.36f, tp)
-        val tw = tp.measureText(info.time)
-        val bx2 = right - tw - dp(8f)
-        val bw = s * 1.15f; val bh = s * 0.55f
-        val bx1 = bx2 - bw
-        p.style = Paint.Style.STROKE; p.strokeWidth = dp(1.2f); p.color = fg
-        r.set(bx1, cy - bh / 2, bx2, cy + bh / 2); c.drawRect(r, p)
-        p.style = Paint.Style.FILL
-        r.set(bx2, cy - bh / 5, bx2 + dp(2f), cy + bh / 5); c.drawRect(r, p)
-        if (info.battery >= 0) {
-            val inner = (bw - dp(4f)) * info.battery / 100f
-            p.color = if (info.battery <= 15 && !info.charging) 0xFFE51400.toInt() else fg
-            r.set(bx1 + dp(2f), cy - bh / 2 + dp(2f), bx1 + dp(2f) + inner, cy + bh / 2 - dp(2f)); c.drawRect(r, p)
+        // Hora centrada.
+        if (showClock && clockPos == 1) {
+            tp.textAlign = Paint.Align.CENTER; tp.color = fg
+            c.drawText(info.time, w / 2f, textY, tp)
         }
-        if (info.charging) Glyphs.draw(c, G.BOLT, bx1 - s * 0.4f, cy, s * 0.7f, fg)
+
+        // Derecha: hora, porcentaje y batería.
+        tp.textAlign = Paint.Align.RIGHT; tp.color = fg
+        var right = w - dp(10f)
+        if (showClock && clockPos == 0) {
+            c.drawText(info.time, right, textY, tp)
+            right -= tp.measureText(info.time) + dp(8f)
+        }
+        if (showBattery) {
+            val bx2 = right
+            val bw = s * 1.15f; val bh = s * 0.55f
+            val bx1 = bx2 - bw
+            p.style = Paint.Style.STROKE; p.strokeWidth = dp(1.2f); p.color = fg
+            r.set(bx1, cy - bh / 2, bx2, cy + bh / 2); c.drawRect(r, p)
+            p.style = Paint.Style.FILL
+            r.set(bx2, cy - bh / 5, bx2 + dp(2f), cy + bh / 5); c.drawRect(r, p)
+            if (info.battery >= 0) {
+                val inner = (bw - dp(4f)) * info.battery / 100f
+                p.color = if (info.battery <= 15 && !info.charging) 0xFFE51400.toInt() else fg
+                r.set(bx1 + dp(2f), cy - bh / 2 + dp(2f), bx1 + dp(2f) + inner, cy + bh / 2 - dp(2f)); c.drawRect(r, p)
+            }
+            right = bx1 - dp(6f)
+            if (info.charging) { Glyphs.draw(c, G.BOLT, right - s * 0.3f, cy, s * 0.7f, fg); right -= s * 0.7f + dp(4f) }
+        }
+        if (showPct && info.battery >= 0) {
+            tp.color = fg; tp.textAlign = Paint.Align.RIGHT
+            c.drawText("${info.battery}%", right, textY, tp)
+        }
     }
 }

@@ -37,7 +37,7 @@ class Prefs(ctx: Context) {
     var monoIcons: Boolean get() = b("monoIcons", true); set(v) = put("monoIcons", v)
     var turnstile: Boolean get() = b("turnstile", true); set(v) = put("turnstile", v)
 
-    /** 0 = Centro de actividades de Mosaico, 1 = panel de notificaciones de Android. */
+    /** Acción (SysActions) al deslizar hacia abajo en Inicio. 0 y 1 coinciden con las versiones anteriores. */
     var swipeDown: Int get() = i("swipeDown", 0); set(v) = put("swipeDown", v)
 
     var hideLabels: Boolean get() = b("hideLabels", false); set(v) = put("hideLabels", v)
@@ -69,6 +69,66 @@ class Prefs(ctx: Context) {
     /** 0 = foto de Inicio, 1 = foto propia, 2 = color de énfasis, 3 = negro. */
     var lockBg: Int get() = i("lockBg", 2); set(v) = put("lockBg", v)
     var lockNotifs: Boolean get() = b("lockNotifs", true); set(v) = put("lockNotifs", v)
+    /** 0 = pequeña, 1 = normal, 2 = grande. */
+    var lockClockSize: Int get() = i("lockClockSize", 1); set(v) = put("lockClockSize", v)
+    /** 0 = abajo a la izquierda (W10M), 1 = centrada arriba. */
+    var lockClockPos: Int get() = i("lockClockPos", 0); set(v) = put("lockClockPos", v)
+    var lockShowDate: Boolean get() = b("lockShowDate", true); set(v) = put("lockShowDate", v)
+    var lockShowEvent: Boolean get() = b("lockShowEvent", true); set(v) = put("lockShowEvent", v)
+    /** Oscurecido del fondo de bloqueo en % (0 a 80). */
+    var lockDim: Int get() = i("lockDim", 0); set(v) = put("lockDim", v)
+
+    // ---------- barra de estado ----------
+    /** -1 = automático, 0 = transparente, 1 = negra, 2 = igual al fondo, 3 = énfasis, 4 = personalizado. */
+    var statusBg: Int get() = i("statusBg", -1); set(v) = put("statusBg", v)
+    var statusBgCustom: Int get() = i("statusBgCustom", 0xFF000000.toInt()); set(v) = put("statusBgCustom", v)
+    /** 0 = automático, 1 = blanco, 2 = negro, 3 = énfasis, 4 = personalizado. */
+    var statusFg: Int get() = i("statusFg", 0); set(v) = put("statusFg", v)
+    var statusFgCustom: Int get() = i("statusFgCustom", 0xFFFFFFFF.toInt()); set(v) = put("statusFgCustom", v)
+    var sbSignal: Boolean get() = b("sbSignal", true); set(v) = put("sbSignal", v)
+    var sbWifi: Boolean get() = b("sbWifi", true); set(v) = put("sbWifi", v)
+    var sbModes: Boolean get() = b("sbModes", true); set(v) = put("sbModes", v)
+    var sbNotifCount: Boolean get() = b("sbNotifCount", true); set(v) = put("sbNotifCount", v)
+    var sbBatteryIcon: Boolean get() = b("sbBatteryIcon", true); set(v) = put("sbBatteryIcon", v)
+    var sbBatteryPct: Boolean get() = b("sbBatteryPct", false); set(v) = put("sbBatteryPct", v)
+    var sbClock: Boolean get() = b("sbClock", true); set(v) = put("sbClock", v)
+    /** 0 = derecha, 1 = centro, 2 = izquierda. */
+    var sbClockPos: Int get() = i("sbClockPos", 0); set(v) = put("sbClockPos", v)
+    /** Tamaño del texto de la barra en %. */
+    var sbTextScale: Int get() = i("sbTextScale", 100); set(v) = put("sbTextScale", v)
+    /** Acciones (SysActions) al tocar y al deslizar la barra de estado. */
+    var statusTap: Int get() = i("statusTap", SysActions.ACTION_CENTER); set(v) = put("statusTap", v)
+    var statusSwipe: Int get() = i("statusSwipe", SysActions.ACTION_CENTER); set(v) = put("statusSwipe", v)
+
+    // ---------- gestos en Inicio ----------
+    var gestureDoubleTap: Int get() = i("gestureDoubleTap", SysActions.NONE); set(v) = put("gestureDoubleTap", v)
+
+    // ---------- Centro de actividades ----------
+    /** Botones de acción rápida visibles, en orden (ids separados por comas). */
+    var acToggles: List<String>
+        get() = (s("acToggles") ?: DEFAULT_TOGGLES.joinToString(",")).split(",").filter { it.isNotBlank() }
+        set(v) = put("acToggles", v.joinToString(","))
+    var acColumns: Int get() = i("acColumns", 4); set(v) = put("acColumns", v)
+    /** Filas visibles con el panel contraído. */
+    var acRows: Int get() = i("acRows", 1); set(v) = put("acRows", v)
+    var acStartExpanded: Boolean get() = b("acStartExpanded", false); set(v) = put("acStartExpanded", v)
+    /** Radio de las esquinas de los botones en dp. */
+    var acRadius: Int get() = i("acRadius", 0); set(v) = put("acRadius", v)
+    var acLabels: Boolean get() = b("acLabels", true); set(v) = put("acLabels", v)
+    /** 0 = igual al fondo, 1 = negro, 2 = personalizado. */
+    var acBg: Int get() = i("acBg", 0); set(v) = put("acBg", v)
+    var acBgCustom: Int get() = i("acBgCustom", 0xFF1F1F1F.toInt()); set(v) = put("acBgCustom", v)
+    /** Opacidad del panel en %. */
+    var acOpacity: Int get() = i("acOpacity", 96); set(v) = put("acOpacity", v)
+    /** Color de los botones encendidos: 0 = énfasis, 1 = personalizado. */
+    var acOnMode: Int get() = i("acOnMode", 0); set(v) = put("acOnMode", v)
+    var acOnCustom: Int get() = i("acOnCustom", 0xFF1BA1E2.toInt()); set(v) = put("acOnCustom", v)
+    var acBrightness: Boolean get() = b("acBrightness", true); set(v) = put("acBrightness", v)
+    var acHeader: Boolean get() = b("acHeader", true); set(v) = put("acHeader", v)
+    var acGroupNotifs: Boolean get() = b("acGroupNotifs", true); set(v) = put("acGroupNotifs", v)
+    var acAndroidLink: Boolean get() = b("acAndroidLink", true); set(v) = put("acAndroidLink", v)
+    /** Tamaño del texto de las notificaciones en %. */
+    var acTextScale: Int get() = i("acTextScale", 100); set(v) = put("acTextScale", v)
 
     /** Muestra el contenido de las notificaciones (mensajes) en los mosaicos medianos, anchos y grandes. */
     var tilePreviews: Boolean get() = b("tilePreviews", true); set(v) = put("tilePreviews", v)
@@ -94,6 +154,17 @@ class Prefs(ctx: Context) {
     fun palette() = Palette(dark, accent)
 
     companion object {
+        /** Todos los botones de acción rápida, con su nombre, en el orden por defecto. */
+        val ALL_TOGGLES: List<Pair<String, String>> = listOf(
+            "wifi" to "Wi-Fi", "bt" to "Bluetooth", "torch" to "Linterna", "rotation" to "Rotación",
+            "location" to "Ubicación", "airplane" to "Modo avión", "quiet" to "Horas de silencio",
+            "saver" to "Ahorro de batería", "data" to "Datos móviles", "hotspot" to "Zona Wi-Fi",
+            "camera" to "Cámara", "settings" to "Toda la configuración",
+            "lock" to "Bloquear pantalla", "screenshot" to "Captura de pantalla", "volume" to "Volumen",
+            "autobright" to "Brillo automático",
+        )
+        val DEFAULT_TOGGLES: List<String> = ALL_TOGGLES.take(12).map { it.first }
+
         val ACCENTS: List<Pair<String, Int>> = listOf(
             "Lima" to 0xFFA4C400.toInt(),
             "Verde" to 0xFF60A917.toInt(),
