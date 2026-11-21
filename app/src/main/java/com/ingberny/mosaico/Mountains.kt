@@ -27,7 +27,6 @@ fun blend(a: Int, b: Int, t: Float): Int {
  */
 class MountainsView(ctx: Context, private val pal: Palette, private val seed: Int = 7) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val path = Path()
     private var sky: LinearGradient? = null
     private val stars = ArrayList<FloatArray>()
 
@@ -38,11 +37,37 @@ class MountainsView(ctx: Context, private val pal: Palette, private val seed: In
         blend(pal.bg, pal.accent, 0.45f), blend(pal.bg, pal.accent, 0.65f), blend(pal.fg, pal.accent, 0.35f),
     )
 
+    /** Las cordilleras se calculan una sola vez por tamaño; al dibujar solo se pintan. */
+    private val ridges = ArrayList<Path>()
+
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         sky = LinearGradient(0f, 0f, 0f, h * 0.72f, pal.bg, horizon, Shader.TileMode.CLAMP)
         stars.clear()
         val r = Random(seed)
         if (pal.dark) repeat(26) { stars += floatArrayOf(r.nextFloat() * w, h * (0.04f + r.nextFloat() * 0.45f), 40f + r.nextFloat() * 110f) }
+        ridges.clear()
+        val rr = Random(seed)
+        val specs = listOf(
+            Triple(0.66f, 0.058f, floatArrayOf(1.1f, 0.6f, 2.7f, 0.3f, 5.3f, 0.1f)),
+            Triple(0.72f, 0.05f, floatArrayOf(0.8f, 0.7f, 3.1f, 0.25f, 7.0f, 0.05f)),
+            Triple(0.79f, 0.038f, floatArrayOf(1.4f, 0.6f, 4.2f, 0.3f, 9.0f, 0.1f)),
+        )
+        val wf = w.toFloat(); val hf = h.toFloat()
+        for ((base, amp, fr) in specs) {
+            val phases = FloatArray(3) { rr.nextFloat() * 6.28f }
+            val path = Path()
+            path.moveTo(0f, hf)
+            var x = 0f
+            val step = dp(4f)
+            while (x <= wf + step) {
+                var y = 0f
+                for (k in 0 until 3) y += fr[k * 2 + 1] * sin(x / wf * fr[k * 2] * 6.283f + phases[k])
+                path.lineTo(x, hf * base - y * hf * amp)
+                x += step
+            }
+            path.lineTo(wf, hf); path.close()
+            ridges += path
+        }
     }
 
     override fun onDraw(c: Canvas) {
@@ -56,26 +81,6 @@ class MountainsView(ctx: Context, private val pal: Palette, private val seed: In
         p.style = Paint.Style.STROKE; p.strokeWidth = dp(1.5f); p.color = withAlpha(pal.fg, 190)
         c.drawCircle(w * 0.76f, h * 0.24f, w * 0.03f, p)
         p.style = Paint.Style.FILL
-        val r = Random(seed)
-        val specs = listOf(
-            Triple(0.66f, 0.058f, floatArrayOf(1.1f, 0.6f, 2.7f, 0.3f, 5.3f, 0.1f)),
-            Triple(0.72f, 0.05f, floatArrayOf(0.8f, 0.7f, 3.1f, 0.25f, 7.0f, 0.05f)),
-            Triple(0.79f, 0.038f, floatArrayOf(1.4f, 0.6f, 4.2f, 0.3f, 9.0f, 0.1f)),
-        )
-        specs.forEachIndexed { i, (base, amp, fr) ->
-            val phases = FloatArray(3) { r.nextFloat() * 6.28f }
-            path.reset(); path.moveTo(0f, h)
-            var x = 0f
-            val step = dp(4f)
-            while (x <= w + step) {
-                var y = 0f
-                for (k in 0 until 3) y += fr[k * 2 + 1] * sin(x / w * fr[k * 2] * 6.283f + phases[k])
-                path.lineTo(x, h * base - y * h * amp)
-                x += step
-            }
-            path.lineTo(w, h); path.close()
-            p.color = layers[i]
-            c.drawPath(path, p)
-        }
+        ridges.forEachIndexed { i, path -> p.color = layers[i]; c.drawPath(path, p) }
     }
 }

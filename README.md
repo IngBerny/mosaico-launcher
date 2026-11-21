@@ -48,6 +48,10 @@ al anochecer que cambia con tu color de énfasis.
 - **Pantalla de bloqueo:** tamaño y posición de la hora, fecha, evento, notificaciones y oscurecido.
 - Con el **Tema para todo el teléfono** (servicio de accesibilidad opcional) se usan en todas las apps.
 
+**Fluidez**
+- Pide la frecuencia más alta de la pantalla (120/144 Hz), guarda los íconos ya dibujados, recicla las filas del cajón y
+  el cajón sigue el dedo al deslizar hacia arriba, con animaciones aceleradas por hardware.
+
 **Copia de seguridad:** exporta e importa todos tus ajustes, o restablece todo.
 
 ## Compilar e instalar

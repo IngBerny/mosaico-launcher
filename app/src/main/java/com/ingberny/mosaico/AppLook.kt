@@ -12,6 +12,8 @@ import org.json.JSONObject
 /** Cómo se ven las apps en el inicio minimalista: forma, colores, nombres propios y fuente. */
 class AppLook(val prefs: Prefs, val pal: Palette) {
     val shape = prefs.iconShape
+    /** Cambia cuando cambian los ajustes: invalida la caché de íconos. */
+    val stamp = prefs.version
     val shapeColor = when (prefs.shapeColorMode) { 1 -> pal.accent; 2 -> prefs.shapeColor; else -> pal.chrome }
     val glyphColor = when (prefs.glyphColorMode) { 1 -> pal.accent; 2 -> prefs.glyphColor; else -> pal.fg }
     val face = Fonts.pick(prefs.font)
@@ -61,21 +63,57 @@ class AppLook(val prefs: Prefs, val pal: Palette) {
     }
 }
 
-/** Ícono de una app, con un punto de énfasis si tiene notificaciones. */
+/**
+ * Imágenes ya dibujadas de los íconos. Dibujar un ícono adaptativo con su forma en cada cuadro es caro;
+ * con la caché, desplazarse solo copia imágenes y va fluido incluso a 120/144 Hz.
+ */
+object IconCache {
+    private val cache = object : android.util.LruCache<String, android.graphics.Bitmap>(
+        (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt().coerceAtLeast(8 * 1024)) {
+        override fun sizeOf(key: String, value: android.graphics.Bitmap) = value.byteCount / 1024
+    }
+    fun get(k: String): android.graphics.Bitmap? = cache.get(k)
+    fun put(k: String, b: android.graphics.Bitmap) { cache.put(k, b) }
+    fun clear() = cache.evictAll()
+}
+
+/** Ícono de una app, con un punto de énfasis si tiene notificaciones. Se puede reutilizar con [bind]. */
 class AppIconView(
     ctx: Context,
     private val look: AppLook,
     private val repo: AppRepo,
-    val entry: AppEntry,
-    private val badge: () -> Int,
+    entry: AppEntry,
+    private var badge: () -> Int,
 ) : View(ctx) {
+    var entry: AppEntry = entry
+        private set
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val bp = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    fun bind(e: AppEntry, badgeOf: () -> Int) {
+        if (e.key != entry.key) { entry = e; contentDescription = look.name(e) }
+        badge = badgeOf
+        invalidate()
+    }
+
     override fun onDraw(c: Canvas) {
-        val s = minOf(width, height).toFloat()
-        look.draw(c, repo, entry, width / 2f, height / 2f, s * 0.9f)
+        val w = width; val h = height
+        if (w <= 0 || h <= 0) return
+        val s = minOf(w, h).toFloat()
+        val key = "${entry.key}|$w|$h|${look.stamp}|${System.identityHashCode(repo.pack)}"
+        var bmp = IconCache.get(key)
+        if (bmp == null) {
+            bmp = try {
+                android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also {
+                    look.draw(Canvas(it), repo, entry, w / 2f, h / 2f, s * 0.9f)
+                    IconCache.put(key, it)
+                }
+            } catch (e: Throwable) { null }
+        }
+        if (bmp != null) c.drawBitmap(bmp, 0f, 0f, bp) else look.draw(c, repo, entry, w / 2f, h / 2f, s * 0.9f)
         if (badge() > 0) {
             p.color = look.pal.accent
-            c.drawCircle(width / 2f + s * 0.36f, height / 2f - s * 0.36f, s * 0.07f, p)
+            c.drawCircle(w / 2f + s * 0.36f, h / 2f - s * 0.36f, s * 0.07f, p)
         }
     }
 }

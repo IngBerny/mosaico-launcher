@@ -32,6 +32,9 @@ interface HomeHost {
     fun openClock()
     fun openCalendar()
     fun weatherTapped()
+    /** El cajón sigue el dedo: [dy] es cuánto subió desde que empezó el gesto. */
+    fun drawerDrag(dy: Float)
+    fun drawerRelease(dy: Float, vy: Float)
 }
 
 /**
@@ -258,8 +261,24 @@ class HomeView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             setOnLongClickListener { host.appMenu(e, this, place); true }
         }
 
+    private var badgeKey = ""
+
+    /**
+     * Notificaciones nuevas: si cambió qué apps tienen punto, se rehace; si no, solo se redibujan los íconos.
+     * Antes se reconstruía todo Inicio con cada notificación.
+     */
     fun refreshBadges() {
-        renderApps()
+        val keys = (prefs.favorites + prefs.dock).joinToString(",") { k ->
+            val pkg = k.substringBefore("/")
+            if ((host.live.badges[pkg] ?: 0) > 0) "1" else "0"
+        }
+        if (keys != badgeKey) { badgeKey = keys; renderApps() }
+        else { invalidateTree(favBox); invalidateTree(dockBox) }
+    }
+
+    private fun invalidateTree(v: View) {
+        v.invalidate()
+        if (v is android.view.ViewGroup) for (i in 0 until v.childCount) invalidateTree(v.getChildAt(i))
     }
 
     // ---------- gestos ----------
@@ -276,25 +295,51 @@ class HomeView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
 
     override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; swiping = false }
-            MotionEvent.ACTION_MOVE -> if (abs(e.y - downY) > slop || abs(e.x - downX) > slop) { swiping = true; return true }
+            MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; swiping = false; dragging = false }
+            MotionEvent.ACTION_MOVE -> if (abs(e.y - downY) > slop || abs(e.x - downX) > slop) {
+                swiping = true
+                dragging = prefs.gestureUp == SysActions.APPS && downY - e.y > abs(e.x - downX)
+                return true
+            }
         }
         return false
     }
 
+    /** Deslizar hacia arriba con el cajón asignado: el cajón sigue el dedo en vez de esperar a soltar. */
+    private var dragging = false
+    private var vt: android.view.VelocityTracker? = null
+
     override fun onTouchEvent(e: MotionEvent): Boolean {
         taps.onTouchEvent(e)
+        if (vt == null) vt = android.view.VelocityTracker.obtain()
+        vt?.addMovement(e)
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; swiping = false }
-            MotionEvent.ACTION_MOVE -> if (abs(e.y - downY) > slop || abs(e.x - downX) > slop) swiping = true
-            MotionEvent.ACTION_UP -> if (swiping) {
-                swiping = false
-                val dx = e.x - downX; val dy = e.y - downY
-                val id = if (abs(dy) >= abs(dx)) { if (dy < 0) prefs.gestureUp else prefs.swipeDown }
-                    else { if (dx < 0) prefs.gestureLeft else prefs.gestureRight }
-                host.gesture(id, null)
+            MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; swiping = false; dragging = false }
+            MotionEvent.ACTION_MOVE -> {
+                if (!swiping && (abs(e.y - downY) > slop || abs(e.x - downX) > slop)) {
+                    swiping = true
+                    dragging = prefs.gestureUp == SysActions.APPS && downY - e.y > abs(e.x - downX)
+                }
+                if (dragging) host.drawerDrag(downY - e.y)
             }
-            MotionEvent.ACTION_CANCEL -> swiping = false
+            MotionEvent.ACTION_UP -> {
+                if (dragging) {
+                    vt?.computeCurrentVelocity(1000)
+                    host.drawerRelease(downY - e.y, vt?.yVelocity ?: 0f)
+                } else if (swiping) {
+                    val dx = e.x - downX; val dy = e.y - downY
+                    val id = if (abs(dy) >= abs(dx)) { if (dy < 0) prefs.gestureUp else prefs.swipeDown }
+                        else { if (dx < 0) prefs.gestureLeft else prefs.gestureRight }
+                    host.gesture(id, null)
+                }
+                swiping = false; dragging = false
+                vt?.recycle(); vt = null
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                if (dragging) host.drawerRelease(0f, 0f)
+                swiping = false; dragging = false
+                vt?.recycle(); vt = null
+            }
         }
         return true
     }

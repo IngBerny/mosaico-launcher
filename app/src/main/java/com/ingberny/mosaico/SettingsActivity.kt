@@ -58,6 +58,7 @@ class SettingsActivity : Activity() {
         pal = prefs.palette()
         setTheme(if (pal.dark) android.R.style.Theme_DeviceDefault_NoActionBar else android.R.style.Theme_DeviceDefault_Light_NoActionBar)
         super.onCreate(savedInstanceState)
+        preferMaxRefreshRate()
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
         if (Build.VERSION.SDK_INT >= 30) {
@@ -352,6 +353,10 @@ class SettingsActivity : Activity() {
         link("Color personalizado…") {
             Pickers.askColor(this, pal, "Color de énfasis", prefs.accent) { prefs.accent = it; changed(true) }
         }
+
+        section("Fluidez")
+        caption("Mosaico pide la frecuencia más alta de tu pantalla (por ejemplo 120 o 144 Hz). Si se ve a 60 Hz, revisa en Ajustes de Android → Pantalla y brillo → Frecuencia de actualización y elige la alta o la dinámica.")
+        addButton("Abrir ajustes de pantalla") { go(Intent(Settings.ACTION_DISPLAY_SETTINGS)) }
 
         section("Fuente")
         subtitle("Reloj, saludo y fecha")

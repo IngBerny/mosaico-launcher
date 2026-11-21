@@ -70,6 +70,7 @@ class LockActivity : Activity(), TileHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        preferMaxRefreshRate()
         palette = prefs.palette()
         setShowWhenLocked(true)
         window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)

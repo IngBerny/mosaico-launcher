@@ -26,6 +26,7 @@ class ActionCenterActivity : Activity(), TileHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        preferMaxRefreshRate()
         palette = prefs.palette()
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT

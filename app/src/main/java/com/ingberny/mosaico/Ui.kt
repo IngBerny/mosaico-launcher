@@ -74,3 +74,23 @@ fun Context.label(
     typeface = face
     includeFontPadding = false
 }
+
+
+/**
+ * Pide a la pantalla su modo de mayor frecuencia (por ejemplo 120 o 144 Hz) con la misma resolución,
+ * para que las animaciones y el desplazamiento se vean fluidos. El sistema puede bajarla para ahorrar batería.
+ */
+fun android.app.Activity.preferMaxRefreshRate() {
+    try {
+        @Suppress("DEPRECATION")
+        val d = (if (android.os.Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
+        val cur = d.mode
+        val best = d.supportedModes
+            .filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
+            .maxByOrNull { it.refreshRate } ?: return
+        val lp = window.attributes
+        lp.preferredDisplayModeId = best.modeId
+        lp.preferredRefreshRate = best.refreshRate
+        window.attributes = lp
+    } catch (e: Throwable) { }
+}

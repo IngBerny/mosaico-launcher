@@ -8,17 +8,24 @@ import android.text.TextWatcher
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.view.animation.PathInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.AbsListView
+import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
+import android.widget.ListView
+import android.widget.TextView
 
 /**
- * Cajón de apps estilo Android: sube desde abajo, búsqueda arriba, apps en lista o en cuadrícula.
+ * Cajón de apps estilo Android: sube desde abajo (siguiendo el dedo), búsqueda arriba, apps en lista o en cuadrícula.
+ * Usa una lista que recicla filas, así que desplazarse es fluido aunque tengas cientos de apps.
  * Se cierra deslizando hacia abajo cuando la lista está al principio.
  */
 class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
@@ -39,6 +46,9 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     private val accent = if (prefs.drawerAccentMode == 1) prefs.drawerAccentColor else pal.accent
     private val pillRadius = dp(prefs.drawerSearchRadius.coerceIn(0, 30).toFloat())
 
+    /** Curva "emphasized" de Material: arranca rápido y frena suave. */
+    private val ease = PathInterpolator(0.2f, 0f, 0f, 1f)
+
     /** Se llama al abrir (true) y al empezar a cerrar (false). */
     var onShow: ((Boolean) -> Unit)? = null
 
@@ -51,38 +61,147 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         isSingleLine = true
         imeOptions = EditorInfo.IME_ACTION_GO
         background = null
-        setPadding(dpi(22), dpi(12), dpi(22), dpi(12))
+        setPadding(dpi(2), dpi(12), dpi(20), dpi(12))
     }
-    private val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-    private val scroll = object : ScrollView(ctx) {
-        private val slop = ViewConfiguration.get(ctx).scaledTouchSlop * 2
+
+    private val slop = ViewConfiguration.get(ctx).scaledTouchSlop * 2
+    private val list = object : ListView(ctx) {
         private var y0 = 0f
         private var pulling = false
+        private var vt: VelocityTracker? = null
+        private fun atTop() = !canScrollVertically(-1)
         override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
             when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { y0 = e.y; pulling = false }
-                MotionEvent.ACTION_MOVE -> if (scrollY == 0 && e.y - y0 > slop) { pulling = true; return true }
+                MotionEvent.ACTION_DOWN -> { y0 = e.rawY; pulling = false }
+                MotionEvent.ACTION_MOVE -> if (atTop() && e.rawY - y0 > slop) { pulling = true; return true }
             }
             return super.onInterceptTouchEvent(e)
         }
         override fun onTouchEvent(e: MotionEvent): Boolean {
-            if (pulling) {
-                if (e.actionMasked == MotionEvent.ACTION_MOVE) this@DrawerView.translationY = maxOf(0f, e.y - y0)
-                if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL) {
-                    pulling = false
-                    if (e.y - y0 > height * 0.18f) close() else this@DrawerView.anim().translationY(0f).setDuration(160).start()
-                }
-                return true
+            if (!pulling) {
+                if (e.actionMasked == MotionEvent.ACTION_MOVE && atTop() && e.rawY - y0 > slop) pulling = true
+                else return super.onTouchEvent(e)
             }
-            return super.onTouchEvent(e)
+            if (vt == null) vt = VelocityTracker.obtain()
+            vt?.addMovement(e)
+            when (e.actionMasked) {
+                MotionEvent.ACTION_MOVE -> this@DrawerView.translationY = maxOf(0f, e.rawY - y0)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    vt?.computeCurrentVelocity(1000)
+                    val vy = vt?.yVelocity ?: 0f
+                    vt?.recycle(); vt = null
+                    pulling = false
+                    if (e.rawY - y0 > this@DrawerView.height * 0.2f || vy > 1500f) close() else settleOpen()
+                }
+            }
+            return true
         }
     }
 
+    // ---------- filas del cajón ----------
+
+    private sealed class Row {
+        class Header(val letter: String) : Row()
+        class Apps(val apps: List<AppEntry>) : Row()
+        class Web(val q: String) : Row()
+    }
+
+    private var rows: List<Row> = emptyList()
     private var shown: List<AppEntry> = emptyList()
+    private val grid get() = prefs.drawerStyle == 1
+    private val cols get() = if (grid) prefs.drawerColumns.coerceIn(3, 7) else 1
+
+    private val adapter = object : BaseAdapter() {
+        override fun getCount() = rows.size
+        override fun getItem(p: Int) = rows[p]
+        override fun getItemId(p: Int) = p.toLong()
+        override fun getViewTypeCount() = 3
+        override fun getItemViewType(p: Int) = when (rows[p]) { is Row.Header -> 0; is Row.Apps -> 1; is Row.Web -> 2 }
+        override fun areAllItemsEnabled() = false
+        override fun isEnabled(p: Int) = false
+
+        override fun getView(p: Int, convert: View?, parent: ViewGroup?): View = when (val r = rows[p]) {
+            is Row.Header -> ((convert as? TextView) ?: context.label("", 13f, accent, Fonts.medium).apply {
+                setPadding(dpi(16), dpi(16), dpi(16), dpi(4))
+            }).also { it.text = r.letter }
+            is Row.Web -> ((convert as? TextView) ?: context.label("", 17f, accent, look.face).apply {
+                setPadding(dpi(16), dpi(18), dpi(16), dpi(18))
+            }).also { tv -> tv.text = "Buscar \"${r.q}\" en la web"; tv.setOnClickListener { webSearch(r.q) } }
+            is Row.Apps -> {
+                val row = (convert as? AppRow) ?: AppRow(context)
+                row.bind(r.apps)
+                row
+            }
+        }
+    }
+
+    /** Una fila con [cols] celdas (cuadrícula) o una sola app (lista). Se reutiliza al desplazarse. */
+    private inner class AppRow(ctx: Context) : LinearLayout(ctx) {
+        private val cells = ArrayList<Cell>()
+        init {
+            orientation = HORIZONTAL
+            repeat(cols) {
+                val c = Cell(ctx)
+                cells += c
+                addView(c, LayoutParams(0, -2, 1f))
+            }
+        }
+        fun bind(apps: List<AppEntry>) {
+            cells.forEachIndexed { i, c -> c.bind(apps.getOrNull(i)) }
+        }
+    }
+
+    private inner class Cell(ctx: Context) : LinearLayout(ctx) {
+        private var entry: AppEntry? = null
+        private var icon: AppIconView? = null
+        private val name: TextView
+        init {
+            if (grid) {
+                orientation = VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(0, dpi(prefs.drawerRowGap / 2), 0, dpi(prefs.drawerRowGap / 2))
+                name = ctx.label("", prefs.drawerLabelSize.toFloat(), textColor, look.labelFace).apply {
+                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
+                    setPadding(dpi(2), dpi(5), dpi(2), 0)
+                }
+            } else {
+                orientation = HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dpi(12), dpi(prefs.drawerRowGap / 2 + 2), dpi(12), dpi(prefs.drawerRowGap / 2 + 2))
+                name = ctx.label("", prefs.drawerLabelSize + 5f, textColor, look.labelFace).apply { maxLines = 1 }
+            }
+            setOnClickListener { entry?.let { host.launch(it, this) } }
+            setOnLongClickListener { entry?.let { host.appMenu(it, this, "drawer") }; entry != null }
+        }
+
+        fun bind(e: AppEntry?) {
+            entry = e
+            visibility = if (e == null) View.INVISIBLE else View.VISIBLE
+            if (e == null) return
+            val showIcon = grid || prefs.drawerIcons
+            if (showIcon) {
+                val iv = icon
+                if (iv == null) {
+                    val size = if (grid) dpi(prefs.drawerIconSize) else dpi(prefs.drawerIconSize - 8)
+                    val v = AppIconView(context, look, host.repo, e) { badge(e) }
+                    icon = v
+                    addView(v, 0, LayoutParams(size, size).apply { if (!grid) rightMargin = dpi(16) })
+                    if (grid && prefs.drawerLabels) addView(name, LayoutParams(-1, -2))
+                    else if (!grid) addView(name, LayoutParams(0, -2, 1f))
+                } else iv.bind(e) { badge(e) }
+            } else if (name.parent == null) addView(name, LayoutParams(0, -2, 1f))
+            name.text = look.name(e)
+            contentDescription = look.name(e)
+        }
+    }
+
+    // ---------- armado ----------
+
     private val partial = prefs.drawerHeight < 100
     private val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val chips = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
     private var category = -100   // -100 = todas
+    private var dirty = true
 
     init {
         val panelColor = withAlpha(bgBase, prefs.drawerOpacity.coerceIn(0, 100) * 255 / 100)
@@ -100,7 +219,6 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             setBackgroundColor(panelColor)
             isClickable = true
         }
-        // Asa para indicar que se puede bajar.
         if (prefs.drawerHandle) col.addView(View(ctx).apply {
             background = android.graphics.drawable.GradientDrawable().apply { setColor(withAlpha(textColor, 80)); cornerRadius = dp(2f) }
         }, LinearLayout.LayoutParams(dpi(36), dpi(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dpi(10) })
@@ -119,7 +237,6 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         }
         val searchRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         searchRow.addView(GlyphView(ctx, G.SEARCH, subColor, 0.5f), LinearLayout.LayoutParams(dpi(44), dpi(44)).apply { leftMargin = dpi(8) })
-        search.setPadding(dpi(2), dpi(12), dpi(20), dpi(12))
         searchRow.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
         bar.addView(searchRow, LayoutParams(-1, -2))
         if (prefs.drawerSearchStyle != 3)
@@ -129,9 +246,21 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             hs.addView(chips)
             col.addView(hs, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dpi(12), dpi(2), dpi(12), dpi(4)) })
         }
-        scroll.isVerticalScrollBarEnabled = false
-        scroll.addView(list, LayoutParams(-1, -2))
-        col.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        list.adapter = adapter
+        list.divider = null
+        list.dividerHeight = 0
+        list.selector = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        list.isVerticalScrollBarEnabled = false
+        list.overScrollMode = View.OVER_SCROLL_NEVER
+        list.clipToPadding = false
+        list.cacheColorHint = android.graphics.Color.TRANSPARENT
+        list.setOnScrollListener(object : AbsListView.OnScrollListener {
+            override fun onScrollStateChanged(v: AbsListView?, state: Int) {
+                if (state == AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL) hideKeyboard()
+            }
+            override fun onScroll(v: AbsListView?, a: Int, b: Int, c: Int) {}
+        })
+        col.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         addView(col, LayoutParams(-1, -1, Gravity.BOTTOM))
         visibility = View.GONE
 
@@ -159,22 +288,55 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         list.setPadding(dpi(8), dpi(4), dpi(8), bottom + dpi(24))
     }
 
-    fun open(withKeyboard: Boolean = prefs.drawerKeyboard) {
-        render()
+    /** Marca que las apps cambiaron: la lista se rehace al abrir. */
+    fun markDirty() { dirty = true; if (isOpen) render() }
+
+    private fun prepare() {
+        if (dirty || search.text.isNotEmpty() || category != -100) { render(); dirty = false }
         visibility = View.VISIBLE
         onShow?.invoke(true)
-        translationY = height.toFloat().takeIf { it > 0 } ?: dp(600f)
-        alpha = 0.6f
-        anim().translationY(0f).alpha(1f).setDuration(220).start()
+    }
+
+    private fun travel(): Float = (if (height > 0) height else resources.displayMetrics.heightPixels).toFloat()
+
+    fun open(withKeyboard: Boolean = prefs.drawerKeyboard) {
+        if (!isOpen) {
+            prepare()
+            translationY = travel()
+        }
+        alpha = 1f
+        animate().translationY(0f).setInterpolator(ease).setDuration(300).withLayer().start()
         if (withKeyboard) focusSearch()
+    }
+
+    /** El cajón sigue el dedo mientras deslizas hacia arriba desde Inicio. [dy] = cuánto subió el dedo. */
+    fun dragFromHome(dy: Float) {
+        if (!isOpen) { prepare(); setLayerType(View.LAYER_TYPE_HARDWARE, null) }
+        animate().cancel()
+        translationY = (travel() - dy).coerceIn(0f, travel())
+    }
+
+    /** Al soltar: se abre si subió lo suficiente o con impulso; si no, vuelve a bajar. */
+    fun releaseFromHome(dy: Float, vy: Float) {
+        setLayerType(View.LAYER_TYPE_NONE, null)
+        if (dy > travel() * 0.22f || vy < -1200f) {
+            animate().translationY(0f).setInterpolator(ease).setDuration(260).withLayer().start()
+            if (prefs.drawerKeyboard) focusSearch()
+        } else close()
+    }
+
+    private fun settleOpen() {
+        animate().translationY(0f).setInterpolator(ease).setDuration(200).withLayer().start()
     }
 
     fun close() {
         if (!isOpen) return
         hideKeyboard()
         onShow?.invoke(false)
-        anim().translationY(height.toFloat()).alpha(0.6f).setDuration(200).withEndAction {
-            visibility = View.GONE; translationY = 0f; search.setText(""); scroll.scrollTo(0, 0)
+        animate().translationY(travel()).setInterpolator(ease).setDuration(240).withLayer().withEndAction {
+            visibility = View.GONE; translationY = 0f
+            if (search.text.isNotEmpty() || category != -100) { category = -100; search.setText("") }
+            list.setSelection(0)
         }.start()
     }
 
@@ -207,10 +369,10 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         }
     }
 
-    /** Vuelve a dibujar la lista (al abrir, al buscar o cuando cambian las apps). */
+    /** Arma las filas (al abrir, al buscar o cuando cambian las apps). Solo datos: las vistas se reciclan. */
     fun render() {
-        list.removeAllViews()
-        val q = AppEntry.normalize(search.text.toString().trim())
+        val raw = search.text.toString().trim()
+        val q = AppEntry.normalize(raw)
         val all = host.repo.apps
         renderChips(all)
         val filtered = all.filter { q.isEmpty() || AppEntry.normalize(look.name(it)).contains(q) || it.sortKey.contains(q) }
@@ -222,59 +384,32 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         }
         if (q.isNotEmpty() && prefs.drawerAutoLaunch && shown.size == 1) { host.launch(shown[0], search); return }
 
-        if (shown.isEmpty()) {
-            val raw = search.text.toString().trim()
-            list.addView(context.label("Buscar \"$raw\" en la web", 17f, accent, look.face).apply {
-                setPadding(dpi(16), dpi(18), dpi(16), dpi(18))
-                setOnClickListener { webSearch(raw) }
-            })
-            return
+        val out = ArrayList<Row>()
+        when {
+            shown.isEmpty() -> out += Row.Web(raw)
+            grid -> shown.chunked(cols).forEach { out += Row.Apps(it) }
+            else -> {
+                val letters = q.isEmpty() && prefs.drawerSort == 0 && prefs.drawerLetters
+                var last = ""
+                for (e in shown) {
+                    if (letters) {
+                        val letter = AppEntry.normalize(look.name(e)).take(1).uppercase()
+                            .let { if (it.isEmpty() || !it[0].isLetter()) "#" else it }
+                        if (letter != last) { last = letter; out += Row.Header(letter) }
+                    }
+                    out += Row.Apps(listOf(e))
+                }
+            }
         }
-        if (prefs.drawerStyle == 1) renderGrid() else renderList(q.isEmpty() && prefs.drawerSort == 0)
+        rows = out
+        adapter.notifyDataSetChanged()
     }
 
     private fun badge(e: AppEntry) = host.live.badges[e.pkg] ?: 0
 
-    private fun renderList(withLetters: Boolean) {
-        var last = ""
-        for (e in shown) {
-            val name = look.name(e)
-            val letter = AppEntry.normalize(name).take(1).uppercase().let { if (it.isEmpty() || !it[0].isLetter()) "#" else it }
-            if (withLetters && prefs.drawerLetters && letter != last) {
-                last = letter
-                list.addView(context.label(letter, 13f, accent, Fonts.medium).apply {
-                    setPadding(dpi(16), dpi(16), dpi(16), dpi(4))
-                })
-            }
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dpi(12), dpi(7), dpi(12), dpi(7))
-            }
-            row.setPadding(dpi(12), dpi(prefs.drawerRowGap / 2 + 2), dpi(12), dpi(prefs.drawerRowGap / 2 + 2))
-            if (prefs.drawerIcons) row.addView(AppIconView(context, look, host.repo, e) { badge(e) },
-                LinearLayout.LayoutParams(dpi(prefs.drawerIconSize - 8), dpi(prefs.drawerIconSize - 8)).apply { rightMargin = dpi(16) })
-            row.addView(context.label(name, prefs.drawerLabelSize + 5f, textColor, look.labelFace), LinearLayout.LayoutParams(0, -2, 1f))
-            row.setOnClickListener { host.launch(e, row) }
-            row.setOnLongClickListener { host.appMenu(e, row, "drawer"); true }
-            list.addView(row)
-        }
-    }
-
-    private fun renderGrid() {
-        val cols = prefs.drawerColumns.coerceIn(3, 7)
-        shown.chunked(cols).forEach { chunk ->
-            val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            for (i in 0 until cols) {
-                val e = chunk.getOrNull(i)
-                if (e == null) { row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)); continue }
-                row.addView(appCell(context, host, e, prefs.drawerIconSize, prefs.drawerLabelSize, prefs.drawerLabels,
-                    textColor, false, "drawer"), LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    setMargins(0, dpi(prefs.drawerRowGap / 2), 0, dpi(prefs.drawerRowGap / 2))
-                })
-            }
-            list.addView(row)
-        }
+    /** Redibuja solo los puntos de notificación visibles, sin rehacer la lista. */
+    fun refreshBadges() {
+        if (isOpen) list.invalidateViews()
     }
 
     // ---------- categorías, como en POCO Launcher ----------
@@ -293,11 +428,16 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         else -> null
     }
 
+    private var chipsKey = ""
+
     private fun renderChips(all: List<AppEntry>) {
         if (!prefs.drawerCategories) return
-        chips.removeAllViews()
         val present = all.map { cat(it) }.filter { catName(it) != null }.distinct().sortedBy { catName(it) }
         if (category != -100 && category !in present) category = -100
+        val key = present.joinToString(",") + "|" + category
+        if (key == chipsKey) return
+        chipsKey = key
+        chips.removeAllViews()
         fun chip(text: String, value: Int) {
             val on = category == value
             chips.addView(context.label(text, 14f, if (on) readableOn(accent) else textColor, look.labelFace).apply {
@@ -305,7 +445,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
                 background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(if (on) accent else withAlpha(textColor, 22)); cornerRadius = minOf(pillRadius, dp(18f))
                 }
-                setOnClickListener { category = value; render() }
+                setOnClickListener { category = value; render(); list.setSelection(0) }
             }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dpi(8) })
         }
         chip("Todas", -100)
@@ -313,10 +453,13 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     }
 
     /** Agrupa por color: tono del color principal del ícono (los grises al final). */
-    private fun hueKey(e: AppEntry): Float {
-        val c = host.repo.color(e) ?: return 999f
-        val hsv = FloatArray(3)
-        android.graphics.Color.colorToHSV(c, hsv)
-        return if (hsv[1] < 0.2f) 400f + hsv[2] else hsv[0]
+    private val hueCache = HashMap<String, Float>()
+    private fun hueKey(e: AppEntry): Float = hueCache.getOrPut(e.key) {
+        val c = host.repo.color(e)
+        if (c == null) 999f else {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(c, hsv)
+            if (hsv[1] < 0.2f) 400f + hsv[2] else hsv[0]
+        }
     }
 }

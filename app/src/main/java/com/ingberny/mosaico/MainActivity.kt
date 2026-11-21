@@ -63,6 +63,7 @@ class MainActivity : Activity(), TileHost, HomeHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        preferMaxRefreshRate()
         prefs.migrateToMinimal()
         palette = prefs.palette()
         look = AppLook(prefs, palette)
@@ -102,7 +103,8 @@ class MainActivity : Activity(), TileHost, HomeHost {
                 if (loader == null) { prefs.iconPack = ""; return@post }
                 repo.pack = loader
                 home.renderApps()
-                if (drawer.isOpen) drawer.render()
+                IconCache.clear()
+                drawer.markDirty()
             }
         }
     }
@@ -231,7 +233,7 @@ class MainActivity : Activity(), TileHost, HomeHost {
 
     /** Con el cajón abierto: esconde el contenido de Inicio y desenfoca el fondo (Android 12+). */
     private fun behindDrawer(open: Boolean) {
-        if (prefs.drawerHideHome) home.column.animate().alpha(if (open) 0f else 1f).setDuration(180).start()
+        if (prefs.drawerHideHome) home.column.animate().alpha(if (open) 0f else 1f).setDuration(180).withLayer().start()
         if (Build.VERSION.SDK_INT >= 31 && prefs.drawerBlur > 0) {
             val r = dp(prefs.drawerBlur.toFloat())
             home.setRenderEffect(if (open) android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.CLAMP) else null)
@@ -319,6 +321,9 @@ class MainActivity : Activity(), TileHost, HomeHost {
         }
     }
 
+    override fun drawerDrag(dy: Float) = drawer.dragFromHome(dy)
+    override fun drawerRelease(dy: Float, vy: Float) = drawer.releaseFromHome(dy, vy)
+
     override fun openClock() { startSafe(Intent(AlarmClock.ACTION_SHOW_ALARMS)) }
 
     override fun openCalendar() {
@@ -367,12 +372,12 @@ class MainActivity : Activity(), TileHost, HomeHost {
         } else if (dock.size < 6) items += "Agregar al dock" to { prefs.dock = dock + e.key; home.renderApps() }
         items += "Cambiar nombre" to {
             Pickers.askText(this, palette, "Nombre", look.name(e), e.label) { s ->
-                look.rename(e, s); home.renderApps(); if (drawer.isOpen) drawer.render()
+                look.rename(e, s); home.renderApps(); drawer.markDirty()
             }
         }
         items += "Ocultar del cajón" to {
             prefs.hiddenApps = prefs.hiddenApps + e.key
-            repo.applyHidden(); if (drawer.isOpen) drawer.render()
+            repo.applyHidden(); drawer.markDirty()
             toast("${look.name(e)} oculta. Puedes volver a mostrarla en Personalizar → Íconos.")
         }
         items += "Información de la app" to { repo.appInfo(e) }
@@ -384,11 +389,12 @@ class MainActivity : Activity(), TileHost, HomeHost {
 
     private fun onAppsChanged() {
         repo.load()
+        IconCache.clear()
         val keys = repo.allApps.map { it.key }.toSet()
         prefs.favorites.filter { it !in keys }.let { gone -> if (gone.isNotEmpty()) prefs.favorites = prefs.favorites - gone.toSet() }
         prefs.dock.filter { it !in keys }.let { gone -> if (gone.isNotEmpty()) prefs.dock = prefs.dock - gone.toSet() }
         home.renderApps()
-        if (drawer.isOpen) drawer.render()
+        drawer.markDirty()
     }
 
     @Deprecated("API clásica de Activity")
@@ -416,7 +422,7 @@ class MainActivity : Activity(), TileHost, HomeHost {
     private fun updateBadges() {
         live.badges = NotifService.counts()
         statusBar?.refresh()
-        if (::home.isInitialized) { home.refreshBadges(); home.refreshMedia() }
+        if (::home.isInitialized) { home.refreshBadges(); home.refreshMedia(); drawer.refreshBadges() }
     }
 
     private fun readBattery(i: Intent) {
