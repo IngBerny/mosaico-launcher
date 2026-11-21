@@ -1,6 +1,6 @@
-# Mosaico: launcher minimalista para Android
+# Mosaico: launcher para Android, al estilo POCO Launcher
 
-Launcher nativo (Kotlin, sin librerías externas), minimalista y con mucha personalización.
+Launcher nativo (Kotlin, sin librerías externas), al estilo de POCO Launcher y con mucha personalización.
 Su tema por defecto, **Mirador**, usa tres colores (tinta, crema y salvia), letras finas y un fondo de montañas
 al anochecer que cambia con tu color de énfasis.
 
@@ -10,16 +10,19 @@ al anochecer que cambia con tu color de énfasis.
 - Saludo con tu nombre ("Buenas noches, Berny"), hora grande y fina (o mediana, apilada u oculta) y fecha.
 - Una línea discreta con el clima, la batería y tu próximo evento.
 - Lo que está sonando (Spotify, YouTube Music…) con controles de anterior, pausa y siguiente.
-- Favoritos como texto, ícono y texto o solo íconos; arriba, al centro o abajo cerca del pulgar; alineados a la
-  izquierda, al centro o a la derecha. Puntos de color cuando una app tiene notificaciones.
-- Dock con hasta 6 apps.
+- Apps en cuadrícula con nombres (3 a 7 columnas, tamaño de íconos y de nombres, sombra), o en lista de texto,
+  lista con íconos o solo íconos. Puntos de color cuando una app tiene notificaciones.
+- Dock con hasta 6 apps, con tamaño propio, nombres opcionales y fondo translúcido.
 - Fondo: montañas, fondo de pantalla de Android, foto propia o color sólido, con oscurecido ajustable.
 - Gestos configurables: deslizar arriba, abajo, izquierda y derecha, doble toque y mantener presionado.
 
 **Cajón de apps** (desliza hacia arriba)
-- Lista con letras de sección o cuadrícula de 3 a 6 columnas. Búsqueda sin acentos, búsqueda en la web si no hay
-  resultados y opción de abrir la app sola cuando queda una.
-- Mantén presionada una app para agregarla a favoritos o al dock, cambiarle el nombre, ocultarla, ver su información
+- Cuadrícula de 3 a 7 columnas o lista; tamaño de íconos y de nombres, espacio entre filas, opacidad y alto del cajón
+  (pantalla completa o una tarjeta más pequeña abajo).
+- Pestañas por categoría (Social, Juegos, Música, Video, Fotos, Noticias, Mapas, Productividad), como en POCO.
+- Orden alfabético, por instalación reciente o por color del ícono.
+- Búsqueda sin acentos, búsqueda en la web si no hay resultados y opción de abrir la app sola cuando queda una.
+- Mantén presionada una app para agregarla a Inicio o al dock, cambiarle el nombre, ocultarla, ver su información
   o desinstalarla. Se cierra deslizando hacia abajo.
 
 **Íconos**
@@ -28,7 +31,8 @@ al anochecer que cambia con tu color de énfasis.
 
 **Tema**
 - Tinta (oscuro), papel (claro) o negro puro; color de énfasis (Salvia, Crema, Atardecer, Cielo, Cancha y más, o
-  cualquier color) y fuente (fina, normal, monoespaciada, condensada o serif).
+  cualquier color) y fuente (fina, normal, monoespaciada, condensada o serif), por separado para el reloj y para los
+  nombres de las apps.
 
 **Barra de estado, Centro de actividades y pantalla de bloqueo propios**
 - **Barra de estado:** fondo, colores, qué mostrar, posición de la hora, tamaño y qué pasa al tocarla o deslizarla.

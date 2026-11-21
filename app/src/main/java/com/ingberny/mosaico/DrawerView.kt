@@ -64,21 +64,42 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     }
 
     private var shown: List<AppEntry> = emptyList()
+    private val partial = prefs.drawerHeight < 100
+    private val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    private val chips = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+    private var category = -100   // -100 = todas
 
     init {
-        setBackgroundColor(withAlpha(pal.bg, prefs.drawerOpacity.coerceIn(40, 100) * 255 / 100))
-        isClickable = true
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val panelColor = withAlpha(pal.bg, prefs.drawerOpacity.coerceIn(40, 100) * 255 / 100)
+        if (partial) {
+            // Tarjeta más pequeña abajo; tocar fuera la cierra.
+            setBackgroundColor(withAlpha(android.graphics.Color.BLACK, 90))
+            setOnClickListener { close() }
+            col.isClickable = true
+            col.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(panelColor)
+                val r = dp(28f)
+                cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+            }
+        } else {
+            setBackgroundColor(panelColor)
+            isClickable = true
+        }
         // Asa para indicar que se puede bajar.
         col.addView(View(ctx).apply { setBackgroundColor(withAlpha(pal.fg, 70)) },
             LinearLayout.LayoutParams(dpi(36), dpi(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dpi(10) })
         val bar = FrameLayout(ctx).apply { setBackgroundColor(withAlpha(pal.fg, 18)) }
         bar.addView(search, LayoutParams(-1, -2))
         col.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dpi(16), dpi(12), dpi(16), dpi(6)) })
+        if (prefs.drawerCategories) {
+            val hs = android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false }
+            hs.addView(chips)
+            col.addView(hs, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dpi(12), dpi(2), dpi(12), dpi(4)) })
+        }
         scroll.isVerticalScrollBarEnabled = false
         scroll.addView(list, LayoutParams(-1, -2))
         col.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        addView(col, LayoutParams(-1, -1))
+        addView(col, LayoutParams(-1, -1, Gravity.BOTTOM))
         visibility = View.GONE
 
         search.addTextChangedListener(object : TextWatcher {
@@ -93,8 +114,15 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
 
     val isOpen get() = visibility == View.VISIBLE
 
+    override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+        super.onSizeChanged(w, h, ow, oh)
+        if (partial) post {
+            col.layoutParams = (col.layoutParams as LayoutParams).apply { height = h * prefs.drawerHeight.coerceIn(40, 100) / 100 }
+        }
+    }
+
     fun setInsets(top: Int, bottom: Int) {
-        setPadding(0, top, 0, 0)
+        setPadding(0, if (partial) 0 else top, 0, 0)
         list.setPadding(dpi(8), dpi(4), dpi(8), bottom + dpi(24))
     }
 
@@ -148,8 +176,15 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     fun render() {
         list.removeAllViews()
         val q = AppEntry.normalize(search.text.toString().trim())
-        shown = host.repo.apps.filter { q.isEmpty() || AppEntry.normalize(look.name(it)).contains(q) || it.sortKey.contains(q) }
-            .sortedBy { AppEntry.normalize(look.name(it)) }
+        val all = host.repo.apps
+        renderChips(all)
+        val filtered = all.filter { q.isEmpty() || AppEntry.normalize(look.name(it)).contains(q) || it.sortKey.contains(q) }
+            .filter { category == -100 || cat(it) == category }
+        shown = when (prefs.drawerSort) {
+            1 -> filtered.sortedByDescending { it.installTime }
+            2 -> filtered.sortedWith(compareBy({ hueKey(it) }, { AppEntry.normalize(look.name(it)) }))
+            else -> filtered.sortedBy { AppEntry.normalize(look.name(it)) }
+        }
         if (q.isNotEmpty() && prefs.drawerAutoLaunch && shown.size == 1) { host.launch(shown[0], search); return }
 
         if (shown.isEmpty()) {
@@ -160,7 +195,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             })
             return
         }
-        if (prefs.drawerStyle == 1) renderGrid() else renderList(q.isEmpty())
+        if (prefs.drawerStyle == 1) renderGrid() else renderList(q.isEmpty() && prefs.drawerSort == 0)
     }
 
     private fun badge(e: AppEntry) = host.live.badges[e.pkg] ?: 0
@@ -181,9 +216,10 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dpi(12), dpi(7), dpi(12), dpi(7))
             }
+            row.setPadding(dpi(12), dpi(prefs.drawerRowGap / 2 + 2), dpi(12), dpi(prefs.drawerRowGap / 2 + 2))
             if (prefs.drawerIcons) row.addView(AppIconView(context, look, host.repo, e) { badge(e) },
-                LinearLayout.LayoutParams(dpi(42), dpi(42)).apply { rightMargin = dpi(16) })
-            row.addView(context.label(name, 18f, pal.fg, look.face), LinearLayout.LayoutParams(0, -2, 1f))
+                LinearLayout.LayoutParams(dpi(prefs.drawerIconSize - 8), dpi(prefs.drawerIconSize - 8)).apply { rightMargin = dpi(16) })
+            row.addView(context.label(name, prefs.drawerLabelSize + 5f, pal.fg, look.labelFace), LinearLayout.LayoutParams(0, -2, 1f))
             row.setOnClickListener { host.launch(e, row) }
             row.setOnLongClickListener { host.appMenu(e, row, "drawer"); true }
             list.addView(row)
@@ -191,27 +227,61 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     }
 
     private fun renderGrid() {
-        val cols = prefs.drawerColumns.coerceIn(3, 6)
+        val cols = prefs.drawerColumns.coerceIn(3, 7)
         shown.chunked(cols).forEach { chunk ->
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             for (i in 0 until cols) {
                 val e = chunk.getOrNull(i)
                 if (e == null) { row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)); continue }
-                val cell = LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dpi(4), dpi(10), dpi(4), dpi(10))
-                }
-                cell.addView(AppIconView(context, look, host.repo, e) { badge(e) }, LinearLayout.LayoutParams(dpi(54), dpi(54)))
-                cell.addView(context.label(look.name(e), 12f, pal.fg, look.face).apply {
-                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
-                    setPadding(0, dpi(6), 0, 0)
-                }, LinearLayout.LayoutParams(-1, -2))
-                cell.setOnClickListener { host.launch(e, cell) }
-                cell.setOnLongClickListener { host.appMenu(e, cell, "drawer"); true }
-                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(appCell(context, host, e, prefs.drawerIconSize, prefs.drawerLabelSize, prefs.drawerLabels,
+                    pal.fg, false, "drawer"), LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    setMargins(0, dpi(prefs.drawerRowGap / 2), 0, dpi(prefs.drawerRowGap / 2))
+                })
             }
             list.addView(row)
         }
+    }
+
+    // ---------- categorías, como en POCO Launcher ----------
+
+    private fun cat(e: AppEntry): Int = e.info.applicationInfo.category
+
+    private fun catName(c: Int): String? = when (c) {
+        android.content.pm.ApplicationInfo.CATEGORY_SOCIAL -> "Social"
+        android.content.pm.ApplicationInfo.CATEGORY_GAME -> "Juegos"
+        android.content.pm.ApplicationInfo.CATEGORY_AUDIO -> "Música"
+        android.content.pm.ApplicationInfo.CATEGORY_VIDEO -> "Video"
+        android.content.pm.ApplicationInfo.CATEGORY_IMAGE -> "Fotos"
+        android.content.pm.ApplicationInfo.CATEGORY_NEWS -> "Noticias"
+        android.content.pm.ApplicationInfo.CATEGORY_MAPS -> "Mapas"
+        android.content.pm.ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productividad"
+        else -> null
+    }
+
+    private fun renderChips(all: List<AppEntry>) {
+        if (!prefs.drawerCategories) return
+        chips.removeAllViews()
+        val present = all.map { cat(it) }.filter { catName(it) != null }.distinct().sortedBy { catName(it) }
+        if (category != -100 && category !in present) category = -100
+        fun chip(text: String, value: Int) {
+            val on = category == value
+            chips.addView(context.label(text, 14f, if (on) readableOn(pal.accent) else pal.fg, look.labelFace).apply {
+                setPadding(dpi(14), dpi(7), dpi(14), dpi(7))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(if (on) pal.accent else withAlpha(pal.fg, 18)); cornerRadius = dp(18f)
+                }
+                setOnClickListener { category = value; render() }
+            }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dpi(8) })
+        }
+        chip("Todas", -100)
+        present.forEach { c -> chip(catName(c) ?: "", c) }
+    }
+
+    /** Agrupa por color: tono del color principal del ícono (los grises al final). */
+    private fun hueKey(e: AppEntry): Float {
+        val c = host.repo.color(e) ?: return 999f
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(c, hsv)
+        return if (hsv[1] < 0.2f) 400f + hsv[2] else hsv[0]
     }
 }

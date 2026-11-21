@@ -53,7 +53,20 @@ class Prefs(ctx: Context) {
         get() = (s("favorites") ?: "").split("|").filter { it.isNotBlank() }
         set(v) = put("favorites", v.joinToString("|"))
     /** 0 = solo texto, 1 = ícono y texto, 2 = solo íconos. */
-    var favStyle: Int get() = i("favStyle", 0); set(v) = put("favStyle", v)
+    /** 0 = solo texto, 1 = ícono y texto, 2 = solo íconos, 3 = cuadrícula con nombres (estilo POCO). */
+    var favStyle: Int get() = i("favStyle", 3); set(v) = put("favStyle", v)
+    /** Cuadrícula de Inicio: columnas, tamaño del ícono (dp), tamaño del nombre (sp), nombres y sombra. */
+    var homeCols: Int get() = i("homeCols", 4); set(v) = put("homeCols", v)
+    var homeIconSize: Int get() = i("homeIconSize", 56); set(v) = put("homeIconSize", v)
+    var homeLabelSize: Int get() = i("homeLabelSize", 12); set(v) = put("homeLabelSize", v)
+    var homeLabels: Boolean get() = b("homeLabels", true); set(v) = put("homeLabels", v)
+    var labelShadow: Boolean get() = b("labelShadow", true); set(v) = put("labelShadow", v)
+    /** Fuente de los nombres de las apps (independiente de la del reloj): -1 = la del tema. */
+    var labelFont: Int get() = i("labelFont", 1); set(v) = put("labelFont", v)
+    var dockIconSize: Int get() = i("dockIconSize", 54); set(v) = put("dockIconSize", v)
+    var dockLabels: Boolean get() = b("dockLabels", false); set(v) = put("dockLabels", v)
+    /** Fondo del dock: 0 ninguno, 1 tarjeta translúcida. */
+    var dockBg: Int get() = i("dockBg", 1); set(v) = put("dockBg", v)
     /** Tamaño del texto de los favoritos en sp. */
     var favSize: Int get() = i("favSize", 24); set(v) = put("favSize", v)
     var favSpacing: Int get() = i("favSpacing", 14); set(v) = put("favSpacing", v)
@@ -65,7 +78,7 @@ class Prefs(ctx: Context) {
     /** Nombres propios de las apps (clave → nombre), en JSON. */
     var renamesJson: String? get() = s("renames"); set(v) = put("renames", v)
     /** Forma detrás de los íconos: 0 ninguna, 1 círculo, 2 cuadrado suave, 3 cuadrado. */
-    var iconShape: Int get() = i("iconShape", 2); set(v) = put("iconShape", v)
+    var iconShape: Int get() = i("iconShape", 0); set(v) = put("iconShape", v)
     /** Color de la forma: 0 = del tema, 1 = del énfasis, 2 = personalizado. */
     var shapeColorMode: Int get() = i("shapeColorMode", 0); set(v) = put("shapeColorMode", v)
     var shapeColor: Int get() = i("shapeColor", 0xFF1B2127.toInt()); set(v) = put("shapeColor", v)
@@ -75,8 +88,18 @@ class Prefs(ctx: Context) {
 
     // ---------- cajón de apps ----------
     /** 0 = lista, 1 = cuadrícula. */
-    var drawerStyle: Int get() = i("drawerStyle", 0); set(v) = put("drawerStyle", v)
-    var drawerColumns: Int get() = i("drawerColumns", 4); set(v) = put("drawerColumns", v)
+    var drawerStyle: Int get() = i("drawerStyle", 1); set(v) = put("drawerStyle", v)
+    var drawerColumns: Int get() = i("drawerColumns", 5); set(v) = put("drawerColumns", v)
+    var drawerIconSize: Int get() = i("drawerIconSize", 50); set(v) = put("drawerIconSize", v)
+    var drawerLabelSize: Int get() = i("drawerLabelSize", 12); set(v) = put("drawerLabelSize", v)
+    var drawerLabels: Boolean get() = b("drawerLabels", true); set(v) = put("drawerLabels", v)
+    /** Espacio entre filas del cajón en dp. */
+    var drawerRowGap: Int get() = i("drawerRowGap", 10); set(v) = put("drawerRowGap", v)
+    /** Alto del cajón en % de la pantalla (los más pequeños quedan como una tarjeta abajo). */
+    var drawerHeight: Int get() = i("drawerHeight", 100); set(v) = put("drawerHeight", v)
+    var drawerCategories: Boolean get() = b("drawerCategories", true); set(v) = put("drawerCategories", v)
+    /** 0 = alfabético, 1 = instaladas recientemente primero, 2 = por color. */
+    var drawerSort: Int get() = i("drawerSort", 0); set(v) = put("drawerSort", v)
     var drawerKeyboard: Boolean get() = b("drawerKeyboard", false); set(v) = put("drawerKeyboard", v)
     var drawerLetters: Boolean get() = b("drawerLetters", true); set(v) = put("drawerLetters", v)
     var drawerIcons: Boolean get() = b("drawerIcons", true); set(v) = put("drawerIcons", v)
@@ -115,7 +138,7 @@ class Prefs(ctx: Context) {
     var iconScale: Int get() = i("iconScale", 100); set(v) = put("iconScale", v)
     var iconPack: String get() = s("iconPack") ?: ""; set(v) = put("iconPack", v)
     /** 0 = colores originales, 1 = monocromático cuando la app lo trae, 2 = silueta para todas. */
-    var iconStyle: Int get() = i("iconStyle", 2); set(v) = put("iconStyle", v)
+    var iconStyle: Int get() = i("iconStyle", 0); set(v) = put("iconStyle", v)
     /** Color de íconos y texto de los mosaicos (ARGB) o TileSpec.COLOR_ACCENT. */
     var tileFg: Int get() = i("tileFg", 0xFFFFFFFF.toInt()); set(v) = put("tileFg", v)
     /** Radio de las esquinas de los mosaicos en dp (0 = cuadrados, como el original). */
@@ -223,6 +246,14 @@ class Prefs(ctx: Context) {
 
     /** Al pasar de la versión de mosaicos al launcher minimalista, se adoptan los nuevos valores por defecto. */
     fun migrateToMinimal() {
+        if (!sp.getBoolean("pocoMigrated", false)) {
+            // 2.1: inicio en cuadrícula, íconos a color y cajón en cuadrícula por defecto.
+            val e = sp.edit()
+            for (k in listOf("favStyle", "iconStyle", "iconShape", "drawerStyle", "drawerColumns", "drawerKeyboard"))
+                e.remove(k)
+            e.putBoolean("pocoMigrated", true).apply()
+            bump()
+        }
         if (minimalMigrated) return
         val e = sp.edit()
         for (k in listOf("accent", "dark", "bgMode", "acRadius", "lockClockPos", "navColor", "iconStyle", "statusBg"))

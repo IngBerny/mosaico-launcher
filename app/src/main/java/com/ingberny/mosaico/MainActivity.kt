@@ -322,6 +322,7 @@ class MainActivity : Activity(), TileHost, HomeHost {
     private fun homeMenu(anchor: View) {
         val items = ArrayList<Pair<String, () -> Unit>>()
         items += "Personalizar inicio" to { openSettings("inicio") }
+        items += "Cajón de apps" to { openSettings("cajon") }
         items += "Tema, colores y fuente" to { openSettings("tema") }
         items += "Íconos" to { openSettings("iconos") }
         items += "Gestos" to { openSettings("gestos") }
@@ -340,11 +341,11 @@ class MainActivity : Activity(), TileHost, HomeHost {
         val inDock = e.key in dock
         if (inFav) {
             val i = favs.indexOf(e.key)
-            if (i > 0) items += "Subir" to { prefs.favorites = favs.toMutableList().also { java.util.Collections.swap(it, i, i - 1) }; home.renderApps() }
-            if (i < favs.size - 1) items += "Bajar" to { prefs.favorites = favs.toMutableList().also { java.util.Collections.swap(it, i, i + 1) }; home.renderApps() }
-            items += "Quitar de favoritos" to { prefs.favorites = favs - e.key; home.renderApps() }
-        } else items += "Agregar a favoritos" to {
-            prefs.favorites = favs + e.key; home.renderApps(); toast("${look.name(e)} está en tus favoritos")
+            if (i > 0) items += (if (prefs.favStyle == 3) "Mover antes" else "Subir") to { prefs.favorites = favs.toMutableList().also { java.util.Collections.swap(it, i, i - 1) }; home.renderApps() }
+            if (i < favs.size - 1) items += (if (prefs.favStyle == 3) "Mover después" else "Bajar") to { prefs.favorites = favs.toMutableList().also { java.util.Collections.swap(it, i, i + 1) }; home.renderApps() }
+            items += "Quitar de Inicio" to { prefs.favorites = favs - e.key; home.renderApps() }
+        } else items += "Agregar a Inicio" to {
+            prefs.favorites = favs + e.key; home.renderApps(); toast("${look.name(e)} está en Inicio")
         }
         if (inDock) {
             val i = dock.indexOf(e.key)

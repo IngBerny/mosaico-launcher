@@ -16,6 +16,8 @@ class AppLook(val prefs: Prefs, val pal: Palette) {
     val glyphColor = when (prefs.glyphColorMode) { 1 -> pal.accent; 2 -> prefs.glyphColor; else -> pal.fg }
     val face = Fonts.pick(prefs.font)
     val bigFace = Fonts.pick(prefs.font, big = true)
+    /** Fuente de los nombres de las apps. */
+    val labelFace = if (prefs.labelFont < 0) face else Fonts.pick(prefs.labelFont)
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val renames: MutableMap<String, String> = HashMap<String, String>().also { m ->
@@ -108,3 +110,31 @@ object DefaultApps {
 
 /** Color legible sobre [bg]. */
 fun readableOn(bg: Int): Int = if (Color.luminance(bg) > 0.55f) Color.BLACK else Color.WHITE
+
+/**
+ * Celda de app al estilo de los launchers Android (POCO, Nova): ícono con su nombre debajo.
+ * Tamaños en dp (ícono) y sp (nombre).
+ */
+fun appCell(
+    ctx: Context, host: HomeHost, e: AppEntry, iconDp: Int, labelSp: Int, showLabel: Boolean,
+    labelColor: Int, shadow: Boolean, place: String,
+): View {
+    val look = host.look
+    val cell = android.widget.LinearLayout(ctx).apply {
+        orientation = android.widget.LinearLayout.VERTICAL
+        gravity = android.view.Gravity.CENTER_HORIZONTAL
+        contentDescription = look.name(e)
+    }
+    cell.addView(AppIconView(ctx, look, host.repo, e) { host.live.badges[e.pkg] ?: 0 },
+        android.widget.LinearLayout.LayoutParams(ctx.dpi(iconDp), ctx.dpi(iconDp)))
+    if (showLabel) cell.addView(ctx.label(look.name(e), labelSp.toFloat(), labelColor, look.labelFace).apply {
+        maxLines = 1
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        gravity = android.view.Gravity.CENTER
+        setPadding(ctx.dpi(2), ctx.dpi(5), ctx.dpi(2), 0)
+        if (shadow) setShadowLayer(ctx.dp(3f), 0f, ctx.dp(1f), 0x99000000.toInt())
+    }, android.widget.LinearLayout.LayoutParams(-1, -2))
+    cell.setOnClickListener { host.launch(e, cell) }
+    cell.setOnLongClickListener { host.appMenu(e, cell, place); true }
+    return cell
+}

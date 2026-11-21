@@ -198,9 +198,9 @@ class SettingsActivity : Activity() {
 
     private val pages = listOf(
         Page("tema", "Tema, colores y fuente", "Tinta, papel o negro puro, color de énfasis, fuente"),
-        Page("inicio", "Pantalla de inicio", "Fondo, saludo, reloj, clima, música, favoritos y dock"),
+        Page("inicio", "Pantalla de inicio", "Fondo, reloj, clima, música, cuadrícula de apps y dock"),
         Page("iconos", "Íconos", "Estilo, forma, color, tamaño, paquetes de íconos, apps ocultas"),
-        Page("cajon", "Cajón de apps", "Lista o cuadrícula, búsqueda, letras"),
+        Page("cajon", "Cajón de apps", "Columnas, tamaño de íconos y nombres, alto, categorías y orden"),
         Page("barra", "Barra de estado", "Colores, qué íconos mostrar, posición de la hora"),
         Page("centro", "Centro de actividades", "Botones, orden, columnas, brillo y notificaciones"),
         Page("bloqueo", "Pantalla de bloqueo", "Fondo, hora, fecha, evento y notificaciones"),
@@ -313,7 +313,7 @@ class SettingsActivity : Activity() {
         pages.forEach { p -> navRow(p.title, p.desc) { openPage(p.id) } }
 
         section("Acerca de")
-        caption("Mosaico 2.0 · Launcher minimalista, hecho en Heredia, Costa Rica.\n" +
+        caption("Mosaico 2.1 · Launcher para Android, hecho en Heredia, Costa Rica.\n" +
             "Proyecto independiente. Clima: Open-Meteo.")
     }
 
@@ -354,7 +354,12 @@ class SettingsActivity : Activity() {
         }
 
         section("Fuente")
+        subtitle("Reloj, saludo y fecha")
         choice(Fonts.NAMES, prefs.font.coerceIn(0, Fonts.NAMES.size - 1)) { prefs.font = it; changed() }
+        subtitle("Nombres de las apps")
+        choice(listOf("Igual que el reloj") + Fonts.NAMES, (prefs.labelFont + 1).coerceIn(0, Fonts.NAMES.size)) {
+            prefs.labelFont = it - 1; changed()
+        }
     }
 
     private fun pageStart() {
@@ -406,21 +411,40 @@ class SettingsActivity : Activity() {
         switchRow("Lo que está sonando", "Canción, artista y controles de Spotify, YouTube Music, etc. Necesita el acceso a notificaciones.",
             prefs.showMedia) { prefs.showMedia = it; prefs.bump() }
 
-        section("Favoritos")
-        caption("Mantén presionada una app en el cajón para agregarla. Mantén presionado un favorito para moverlo, cambiarle el nombre o quitarlo.")
+        section("Apps en Inicio")
+        caption("Mantén presionada una app en el cajón → Agregar a Inicio. Mantén presionada una app de Inicio para moverla, cambiarle el nombre o quitarla.")
         subtitle("Estilo")
-        choice(listOf("Solo texto", "Ícono y texto", "Solo íconos"), prefs.favStyle.coerceIn(0, 2)) { prefs.favStyle = it; changed() }
+        choice(listOf("Cuadrícula con nombres (como POCO)", "Lista de texto", "Lista con íconos", "Solo íconos"),
+            when (prefs.favStyle) { 3 -> 0; 0 -> 1; 1 -> 2; else -> 3 }) { i ->
+            prefs.favStyle = when (i) { 0 -> 3; 1 -> 0; 2 -> 1; else -> 2 }; changed()
+        }
+        if (prefs.favStyle == 3) {
+            subtitle("Columnas")
+            val cols = listOf(3, 4, 5, 6, 7)
+            choice(cols.map { "$it" }, cols.indexOf(prefs.homeCols).let { if (it < 0) 1 else it }) { prefs.homeCols = cols[it]; changed() }
+            slider({ "Tamaño de los íconos: $it dp" }, 36, 84, prefs.homeIconSize) { prefs.homeIconSize = it; changed() }
+            switchRow("Mostrar nombres", null, prefs.homeLabels) { prefs.homeLabels = it; changed() }
+            if (prefs.homeLabels) slider({ "Tamaño de los nombres: $it" }, 9, 18, prefs.homeLabelSize) { prefs.homeLabelSize = it; changed() }
+            switchRow("Sombra en los nombres", "Para leerlos sobre cualquier fondo", prefs.labelShadow) { prefs.labelShadow = it; prefs.bump() }
+        } else {
+            slider({ "Tamaño del texto: $it" }, 14, 40, prefs.favSize) { prefs.favSize = it; changed() }
+            subtitle("Alineación")
+            choice(listOf("Izquierda", "Centro", "Derecha"), prefs.favAlign.coerceIn(0, 2)) { prefs.favAlign = it; changed() }
+        }
         subtitle("Posición")
         choice(listOf("Debajo del reloj", "Al centro", "Abajo, cerca del pulgar"), prefs.favPos.coerceIn(0, 2)) { prefs.favPos = it; changed() }
-        subtitle("Alineación")
-        choice(listOf("Izquierda", "Centro", "Derecha"), prefs.favAlign.coerceIn(0, 2)) { prefs.favAlign = it; changed() }
-        slider({ "Tamaño del texto: $it" }, 14, 40, prefs.favSize) { prefs.favSize = it; changed() }
-        slider({ "Espacio entre apps: $it" }, 0, 40, prefs.favSpacing) { prefs.favSpacing = it; changed() }
-        link("Quitar todos los favoritos") { prefs.favorites = emptyList(); changed() }
+        slider({ "Espacio entre filas: $it" }, 0, 40, prefs.favSpacing) { prefs.favSpacing = it; changed() }
+        link("Quitar todas las apps de Inicio") { prefs.favorites = emptyList(); changed() }
 
         section("Dock")
         switchRow("Mostrar el dock", "Hasta 6 apps fijas abajo", prefs.dockOn) { prefs.dockOn = it; changed() }
-        if (prefs.dockOn) caption("Para agregar o quitar: mantén presionada la app → Agregar al dock.")
+        if (prefs.dockOn) {
+            slider({ "Tamaño de los íconos del dock: $it dp" }, 36, 76, prefs.dockIconSize) { prefs.dockIconSize = it; changed() }
+            switchRow("Nombres en el dock", null, prefs.dockLabels) { prefs.dockLabels = it; prefs.bump() }
+            subtitle("Fondo del dock")
+            choice(listOf("Sin fondo", "Tarjeta translúcida"), prefs.dockBg.coerceIn(0, 1)) { prefs.dockBg = it; changed() }
+            caption("Para agregar o quitar: mantén presionada la app → Agregar al dock.")
+        }
     }
 
     private fun pageIcons() {
@@ -479,16 +503,34 @@ class SettingsActivity : Activity() {
 
     private fun pageDrawer() {
         section("Vista")
-        choice(listOf("Lista", "Cuadrícula"), prefs.drawerStyle.coerceIn(0, 1)) { prefs.drawerStyle = it; changed() }
+        choice(listOf("Cuadrícula", "Lista"), if (prefs.drawerStyle == 1) 0 else 1) { prefs.drawerStyle = if (it == 0) 1 else 0; changed() }
         if (prefs.drawerStyle == 1) {
             subtitle("Columnas")
-            val cols = listOf(3, 4, 5, 6)
-            choice(cols.map { "$it" }, cols.indexOf(prefs.drawerColumns).let { if (it < 0) 1 else it }) { prefs.drawerColumns = cols[it]; changed() }
+            val cols = listOf(3, 4, 5, 6, 7)
+            choice(cols.map { "$it" }, cols.indexOf(prefs.drawerColumns).let { if (it < 0) 2 else it }) { prefs.drawerColumns = cols[it]; changed() }
+            switchRow("Mostrar nombres", null, prefs.drawerLabels) { prefs.drawerLabels = it; changed() }
         } else {
             switchRow("Letras de sección", "A, B, C… entre las apps", prefs.drawerLetters) { prefs.drawerLetters = it; prefs.bump() }
             switchRow("Íconos en la lista", "Apágalo para una lista solo de nombres", prefs.drawerIcons) { prefs.drawerIcons = it; prefs.bump() }
         }
+
+        section("Tamaño")
+        slider({ "Tamaño de los íconos: $it dp" }, 32, 76, prefs.drawerIconSize) { prefs.drawerIconSize = it; changed() }
+        slider({ "Tamaño de los nombres: $it" }, 9, 18, prefs.drawerLabelSize) { prefs.drawerLabelSize = it; changed() }
+        slider({ "Espacio entre filas: $it" }, 0, 40, prefs.drawerRowGap) { prefs.drawerRowGap = it; changed() }
+        slider({ "Alto del cajón: ${if (it >= 100) "pantalla completa" else "$it% de la pantalla"}" }, 40, 100, prefs.drawerHeight) {
+            prefs.drawerHeight = it; changed()
+        }
         slider({ "Opacidad del fondo: $it%" }, 40, 100, prefs.drawerOpacity) { prefs.drawerOpacity = it; changed() }
+
+        section("Organización")
+        switchRow("Categorías", "Pestañas Social, Juegos, Música, Video, Fotos… arriba del cajón", prefs.drawerCategories) {
+            prefs.drawerCategories = it; prefs.bump()
+        }
+        subtitle("Orden")
+        choice(listOf("Alfabético", "Instaladas recientemente primero", "Por color del ícono"), prefs.drawerSort.coerceIn(0, 2)) {
+            prefs.drawerSort = it; changed()
+        }
 
         section("Búsqueda")
         switchRow("Abrir el teclado al abrir el cajón", null, prefs.drawerKeyboard) { prefs.drawerKeyboard = it; prefs.bump() }

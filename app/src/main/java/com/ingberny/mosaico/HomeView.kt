@@ -103,9 +103,14 @@ class HomeView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             1 -> { spacer(); column.addView(favBox, favLp); spacer() }
             else -> { spacer(); column.addView(favBox, favLp.apply { bottomMargin = dpi(28) }) }
         }
-        if (prefs.dockOn) column.addView(dockBox, LinearLayout.LayoutParams(-1, dpi(76)).apply { bottomMargin = dpi(10) })
-        favBox.setPadding(dpi(28), 0, dpi(28), 0)
-        dockBox.setPadding(dpi(16), 0, dpi(16), 0)
+        if (prefs.dockOn) {
+            if (prefs.dockBg == 1) dockBox.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(withAlpha(pal.fg, 26)); cornerRadius = dp(28f)
+            }
+            column.addView(dockBox, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dpi(12), 0, dpi(12), dpi(10)) })
+        }
+        favBox.setPadding(if (prefs.favStyle == 3) dpi(8) else dpi(28), 0, if (prefs.favStyle == 3) dpi(8) else dpi(28), 0)
+        dockBox.setPadding(dpi(8), dpi(10), dpi(8), dpi(10))
         addView(column, LayoutParams(-1, -1))
 
         renderApps()
@@ -183,11 +188,28 @@ class HomeView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         val repo = host.repo
         val favs = prefs.favorites.mapNotNull { k -> repo.apps.firstOrNull { it.key == k } }
         if (favs.isEmpty()) {
-            favBox.addView(context.label("Mantén presionada una app del cajón para agregarla aquí", 14f, pal.sub, look.face).apply {
+            favBox.addView(context.label("Mantén presionada una app del cajón → Agregar a Inicio", 14f, pal.sub, look.face).apply {
                 gravity = favGravity
             }, LinearLayout.LayoutParams(-1, -2))
         }
+        val shadow = prefs.labelShadow && prefs.homeBg != 2
         when (prefs.favStyle) {
+            3 -> {
+                // Cuadrícula con nombres, como en POCO Launcher.
+                val cols = prefs.homeCols.coerceIn(3, 7)
+                favs.chunked(cols).forEach { chunk ->
+                    val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+                    for (i in 0 until cols) {
+                        val e = chunk.getOrNull(i)
+                        if (e == null) { row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)); continue }
+                        row.addView(appCell(context, host, e, prefs.homeIconSize, prefs.homeLabelSize, prefs.homeLabels,
+                            pal.fg, shadow, "fav"), LinearLayout.LayoutParams(0, -2, 1f).apply {
+                            setMargins(0, dpi(prefs.favSpacing / 2), 0, dpi(prefs.favSpacing / 2))
+                        })
+                    }
+                    favBox.addView(row, LinearLayout.LayoutParams(-1, -2))
+                }
+            }
             2 -> {
                 // Solo íconos, en filas de hasta 5.
                 favs.chunked(5).forEach { chunk ->
@@ -202,7 +224,8 @@ class HomeView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         }
         if (prefs.dockOn) {
             prefs.dock.mapNotNull { k -> repo.apps.firstOrNull { it.key == k } }.take(6).forEach { e ->
-                dockBox.addView(iconView(e, "dock"), LinearLayout.LayoutParams(0, dpi(58), 1f))
+                dockBox.addView(appCell(context, host, e, prefs.dockIconSize, prefs.homeLabelSize, prefs.dockLabels,
+                    pal.fg, shadow && prefs.dockBg == 0, "dock"), LinearLayout.LayoutParams(0, -2, 1f))
             }
         }
     }
