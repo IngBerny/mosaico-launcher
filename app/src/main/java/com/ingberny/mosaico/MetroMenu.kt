@@ -6,13 +6,15 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 
-/** Menú contextual al estilo Metro: una franja que aparece junto al elemento pulsado. */
+/** Menú contextual: una tarjeta redondeada que aparece junto al elemento pulsado. */
 class MetroMenu(ctx: Context, private val pal: Palette) : FrameLayout(ctx) {
 
     private val card = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(pal.chrome)
-        setPadding(0, dpi(6), 0, dpi(6))
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(pal.chrome); cornerRadius = dp(20f)
+        }
+        setPadding(0, dpi(8), 0, dpi(8))
         elevation = dp(8f)
     }
 
@@ -20,7 +22,7 @@ class MetroMenu(ctx: Context, private val pal: Palette) : FrameLayout(ctx) {
         setBackgroundColor(withAlpha(Color.BLACK, if (pal.dark) 140 else 90))
         isClickable = true
         setOnClickListener { dismiss() }
-        addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { setMargins(dpi(16), 0, dpi(16), 0) })
         card.isClickable = true
         visibility = View.GONE
     }
@@ -30,8 +32,8 @@ class MetroMenu(ctx: Context, private val pal: Palette) : FrameLayout(ctx) {
     fun show(anchor: View, items: List<Pair<String, () -> Unit>>) {
         card.removeAllViews()
         for ((title, action) in items) {
-            card.addView(context.label(title, 18f, pal.fg, Fonts.regular).apply {
-                setPadding(dpi(20), dpi(14), dpi(20), dpi(14))
+            card.addView(context.label(title, 17f, pal.fg, Fonts.regular).apply {
+                setPadding(dpi(22), dpi(13), dpi(22), dpi(13))
                 setOnClickListener { dismiss(); action() }
             }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         }

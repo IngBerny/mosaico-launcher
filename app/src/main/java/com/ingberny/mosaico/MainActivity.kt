@@ -10,70 +10,62 @@ import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.AlarmClock
 import android.provider.CalendarContract
-import android.provider.MediaStore
-import android.util.Size
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.FrameLayout
-import android.widget.ScrollView
 import android.widget.Toast
-import java.io.File
 import java.util.concurrent.Executors
 
-class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callbacks {
+/** Launcher minimalista: inicio con widgets y favoritos, cajón de apps y todo lo demás personalizable. */
+class MainActivity : Activity(), TileHost, HomeHost {
 
     override lateinit var repo: AppRepo
     override val prefs: Prefs by lazy { Prefs(this) }
     override lateinit var palette: Palette
+    override lateinit var look: AppLook
     override val live = LiveState()
-    private var backdropBmp: Bitmap? = null
-    override fun backdrop(): Bitmap? = backdropBmp
+    override fun backdrop(): Bitmap? = null
 
     private lateinit var root: FrameLayout
-    private lateinit var pager: Pager
-    private lateinit var start: StartScreen
-    private lateinit var appList: AppListView
+    private lateinit var home: HomeView
+    private lateinit var drawer: DrawerView
     private lateinit var action: ActionCenter
     private lateinit var menu: MetroMenu
-    private lateinit var colorSheet: ColorSheet
     private var navBar: NavBarView? = null
-    /** true si usamos la barra propia dentro de Mosaico (y ocultamos la de Android). */
     private var ownBar = false
     private var ownStatus = false
     private var statusBar: StatusBarView? = null
     private var serviceOn = false
 
     private var appliedVersion = -1
-    private var launchedOut = false
     private var resumed = false
     private var weatherLoading = false
     private var lastCalendar = 0L
-    private var lastPhotos = 0L
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
     private var appsCallback: LauncherApps.Callback? = null
-    private val notifListener: () -> Unit = { updateBadges() }
+    private val notifListener: () -> Unit = { main.post { updateBadges() } }
 
     companion object {
         private const val REQ_CAL = 11
         private const val REQ_LOC = 12
-        private const val REQ_PHOTOS = 13
     }
 
     // ---------- ciclo de vida ----------
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prefs.migrateToMinimal()
         palette = prefs.palette()
+        look = AppLook(prefs, palette)
         appliedVersion = prefs.version
         serviceOn = NavService.isEnabled(this)
         ownBar = prefs.navInLauncher && !(serviceOn && prefs.navSystem)
@@ -81,36 +73,24 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
 
         repo = AppRepo(this, prefs)
         repo.load()
-        val tiles = TileStore.load(prefs) ?: DefaultTiles.build(this, repo).also { TileStore.save(prefs, it) }
+        if (!prefs.sp.contains("dock")) prefs.dock = DefaultApps.dock(this, repo)
+        if (!prefs.sp.contains("favorites")) prefs.favorites = DefaultApps.favorites(this, repo, prefs.dock)
+        appliedVersion = prefs.version
         live.weather = WeatherData.fromJson(prefs.weatherJson)
-        if (prefs.bgMode == 1) loadBackdrop()
 
-        buildUi(tiles)
+        buildUi()
         setupWindow()
         registerReceivers()
         NotifService.addListener(notifListener)
-        appsCallback = repo.watch { removed -> onAppsChanged(removed) }
+        appsCallback = repo.watch { main.post { onAppsChanged() } }
         updateBadges()
         loadIconPack()
-        if (intent?.getBooleanExtra(NavBarView.EXTRA_SEARCH, false) == true) root.post { openSearch() }
+        if (intent?.getBooleanExtra(NavBarView.EXTRA_SEARCH, false) == true) root.post { drawer.open(true) }
         intent?.getStringExtra(SysActions.EXTRA_OPEN)?.let { what -> root.post { openFromExtra(what) } }
     }
 
-    /** Lista de apps o búsqueda pedidas desde un gesto fuera de Mosaico (barra de estado del servicio). */
     private fun openFromExtra(what: String) {
-        if (what == "search") openSearch() else { start.grid.exitEdit(); pager.goTo(1) }
-    }
-
-    /** Ejecuta la acción asignada a un gesto (Personalizar → Gestos). */
-    private fun runGesture(id: Int) {
-        when (id) {
-            SysActions.ACTION_CENTER -> action.open()
-            SysActions.APPS -> { start.grid.exitEdit(); pager.goTo(1) }
-            SysActions.SEARCH -> openSearch()
-            SysActions.SETTINGS -> openSettings()
-            SysActions.NONE -> {}
-            else -> SysActions.runSystem(this, id)
-        }
+        if (what == "search") drawer.open(true) else drawer.open()
     }
 
     private fun loadIconPack() {
@@ -121,8 +101,8 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
             main.post {
                 if (loader == null) { prefs.iconPack = ""; return@post }
                 repo.pack = loader
-                start.grid.invalidateTiles()
-                appList.refresh()
+                home.renderApps()
+                if (drawer.isOpen) drawer.render()
             }
         }
     }
@@ -133,29 +113,21 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         if (prefs.version != appliedVersion || NavService.isEnabled(this) != serviceOn) { recreate(); return }
         applyImmersive()
         statusBar?.refresh()
-        start.grid.turnstileIn(launchedOut)
-        launchedOut = false
         refreshAll(false)
         updateBadges()
-        val isDefault = DefaultHome.isDefault(this)
-        start.showBanner(!isDefault)
-        if (!isDefault && !prefs.askedDefault) {
+        home.refreshMedia()
+        if (!DefaultHome.isDefault(this) && !prefs.askedDefault) {
             prefs.askedDefault = true
             main.postDelayed({ if (resumed) DefaultHome.request(this) }, 600)
         }
         action.updateClock()
-        main.removeCallbacks(flipLoop); main.postDelayed(flipLoop, 3500)
-        main.removeCallbacks(photoLoop); main.postDelayed(photoLoop, 6000)
     }
 
     override fun onPause() {
         super.onPause()
         resumed = false
-        main.removeCallbacks(flipLoop)
-        main.removeCallbacks(photoLoop)
-        start.grid.exitEdit()
         menu.dismiss()
-        appList.hideKeyboard()
+        drawer.hideKeyboard()
     }
 
     override fun onDestroy() {
@@ -166,10 +138,10 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         io.shutdownNow()
     }
 
-    /** Botón Inicio con el launcher ya abierto. */
+    /** Botón Inicio con el launcher ya abierto: cierra lo que esté abierto. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra(NavBarView.EXTRA_SEARCH, false)) { openSearch(); return }
+        if (intent.getBooleanExtra(NavBarView.EXTRA_SEARCH, false)) { drawer.open(true); return }
         val extra = intent.getStringExtra(SysActions.EXTRA_OPEN)
         if (extra != null) { openFromExtra(extra); return }
         goHomeState()
@@ -180,78 +152,37 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         if (hasFocus) applyImmersive()
     }
 
-    private fun openSearch() {
-        if (colorSheet.isOpen) colorSheet.dismiss()
-        if (menu.isOpen) menu.dismiss()
-        if (action.isOpen) action.close()
-        start.grid.exitEdit()
-        pager.goTo(1)
-        appList.focusSearch()
-    }
-
-    /** Botón Inicio: cierra lo que esté abierto o vuelve arriba en Inicio. */
     private fun goHomeState() {
         when {
-            colorSheet.isOpen -> colorSheet.dismiss()
             menu.isOpen -> menu.dismiss()
             action.isOpen -> action.close()
-            start.grid.editing -> start.grid.exitEdit()
-            pager.page == 1 -> { appList.reset(); pager.goTo(0) }
-            else -> start.scrollToTop()
+            drawer.isOpen -> drawer.close()
         }
     }
 
     @Deprecated("Usado por compatibilidad con todas las versiones")
-    override fun onBackPressed() {
-        when {
-            colorSheet.isOpen -> colorSheet.dismiss()
-            menu.isOpen -> menu.dismiss()
-            action.isOpen -> action.close()
-            appList.jumpOpen -> appList.hideJump()
-            start.grid.editing -> start.grid.exitEdit()
-            pager.page == 1 -> { appList.reset(); pager.goTo(0) }
-        }
-    }
+    override fun onBackPressed() = goHomeState()
 
     // ---------- interfaz ----------
 
-    private fun buildUi(tiles: MutableList<TileSpec>) {
+    private fun buildUi() {
         root = FrameLayout(this)
-        if (prefs.bgMode != 0) root.setBackgroundColor(palette.bg)
 
-        start = StartScreen(this, this, { pager.goTo(1) }, { openSettings() })
-        start.grid.columns = if (prefs.moreTiles) 6 else 4
-        start.grid.listener = this
-        start.grid.setTiles(tiles)
-        start.scroll.onPullDown = { onPullDown() }
-        start.scroll.onDoubleTap = if (prefs.gestureDoubleTap == SysActions.NONE) null
-            else ({ if (!start.grid.editing) runGesture(prefs.gestureDoubleTap) })
-        start.onBannerClick = { DefaultHome.request(this) }
-
-        appList = AppListView(this, this, this)
-        appList.refresh()
-
-        pager = Pager(this)
-        pager.addView(start, FrameLayout.LayoutParams(-1, -1))
-        pager.addView(appList, FrameLayout.LayoutParams(-1, -1))
-        pager.onPageChanged = { p ->
-            if (p == 0) appList.hideKeyboard() else start.grid.exitEdit()
-        }
-        root.addView(pager, FrameLayout.LayoutParams(-1, -1))
-
+        home = HomeView(this, this)
+        root.addView(home, FrameLayout.LayoutParams(-1, -1))
+        drawer = DrawerView(this, this)
+        root.addView(drawer, FrameLayout.LayoutParams(-1, -1))
         action = ActionCenter(this, this)
         root.addView(action, FrameLayout.LayoutParams(-1, -1))
         menu = MetroMenu(this, palette)
         root.addView(menu, FrameLayout.LayoutParams(-1, -1))
-        colorSheet = ColorSheet(this, palette)
-        root.addView(colorSheet, FrameLayout.LayoutParams(-1, -1))
 
         val statusH = resources.getIdentifier("status_bar_height", "dimen", "android")
             .let { if (it > 0) resources.getDimensionPixelSize(it) else dpi(24) }
         if (ownStatus) {
             statusBar = StatusBarView(this, opaque = false,
-                onOpen = { runGesture(prefs.statusSwipe) }, onTap = { runGesture(prefs.statusTap) }).also {
-                it.applyTheme(prefs, if (!palette.dark && prefs.bgMode != 0) Color.BLACK else Color.WHITE)
+                onOpen = { gesture(prefs.statusSwipe, null) }, onTap = { gesture(prefs.statusTap, null) }).also {
+                it.applyTheme(prefs, palette.fg)
                 root.addView(it, root.indexOfChild(action), FrameLayout.LayoutParams(-1, statusH, android.view.Gravity.TOP))
             }
         }
@@ -259,12 +190,9 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         val barH = dpi(48)
         if (ownBar) {
             navBar = NavBarView(this,
-                onBack = {
-                    @Suppress("DEPRECATION")
-                    onBackPressed()
-                },
+                onBack = { goHomeState() },
                 onHome = { goHomeState() },
-                onSearch = { if (pager.page == 1 && !colorSheet.isOpen) appList.focusSearch() else openSearch() },
+                onSearch = { drawer.open(true) },
                 onLongBack = { NavService.instance?.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS) },
                 onLongHome = { startSafe(NavBarView.assistIntent()) },
             )
@@ -292,10 +220,9 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                 bar.requestLayout()
                 bottom + barH
             } else bottom
-            start.setInsets(tt, bb)
-            appList.setInsets(tt, maxOf(bb, ime))
+            home.setInsets(tt, bb)
+            drawer.setInsets(tt, maxOf(bb, ime))
             action.setInsets(tt, bb)
-            colorSheet.setInsets(bb)
             ins
         }
         setContentView(root)
@@ -303,11 +230,11 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
 
     private fun setupWindow() {
         val w = window
-        w.statusBarColor = Color.TRANSPARENT
-        w.navigationBarColor = Color.TRANSPARENT
+        w.statusBarColor = android.graphics.Color.TRANSPARENT
+        w.navigationBarColor = android.graphics.Color.TRANSPARENT
         w.isNavigationBarContrastEnforced = false
         w.isStatusBarContrastEnforced = false
-        val lightBars = !palette.dark && prefs.bgMode != 0
+        val lightBars = !palette.dark
         if (Build.VERSION.SDK_INT >= 30) {
             w.setDecorFitsSystemWindows(false)
             val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
@@ -324,7 +251,6 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         applyImmersive()
     }
 
-    /** Oculta la barra de Android mientras Mosaico está en pantalla (se puede mostrar deslizando desde abajo). */
     private fun applyImmersive() {
         if (!ownBar && !ownStatus) return
         if (Build.VERSION.SDK_INT >= 30) {
@@ -347,126 +273,109 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         }
     }
 
-    private fun loadBackdrop() {
-        val f = File(filesDir, "backdrop.jpg")
-        backdropBmp = if (f.exists()) try { BitmapFactory.decodeFile(f.absolutePath) } catch (e: Throwable) { null } else null
-    }
-
-    private fun openSettings() {
-        startActivity(Intent(this, SettingsActivity::class.java))
+    private fun openSettings(page: String? = null) {
+        val i = Intent(this, SettingsActivity::class.java)
+        if (page != null) i.putExtra(SettingsActivity.EXTRA_PAGE, page)
+        startActivity(i)
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-    private fun onPullDown() {
-        val id = prefs.swipeDown
-        // Si el panel de Android no se puede abrir en este teléfono, se usa el Centro de actividades de Mosaico.
-        if (id == SysActions.ANDROID_PANEL || id == SysActions.ANDROID_QUICK) {
-            if (!SysActions.runSystem(this, id)) action.open()
-        } else runGesture(id)
-    }
-
-    // ---------- mosaicos ----------
-
     private fun has(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
-    private fun photoPerm() = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
 
     private fun startSafe(i: Intent): Boolean = try { startActivity(i); true } catch (e: Exception) {
         toast("No se encontró una app para abrir esto"); false
     }
 
-    private fun launchWithTurnstile(v: View, go: () -> Unit) {
-        if (!prefs.turnstile) { go(); return }
-        launchedOut = true
-        start.grid.turnstileOut(v) {
-            go()
-            // Si no se abrió nada (error), devolvemos los mosaicos.
-            main.postDelayed({ if (resumed && launchedOut) { start.grid.turnstileIn(true); launchedOut = false } }, 1200)
+    // ---------- HomeHost ----------
+
+    override fun launch(e: AppEntry, from: View) {
+        repo.launch(e, from)
+        if (drawer.isOpen) main.postDelayed({ drawer.close() }, 400)
+    }
+
+    override fun gesture(id: Int, anchor: View?) {
+        when (id) {
+            SysActions.ACTION_CENTER -> action.open()
+            SysActions.APPS -> drawer.open()
+            SysActions.SEARCH -> drawer.open(true)
+            SysActions.SETTINGS -> openSettings()
+            SysActions.MENU -> homeMenu(anchor ?: home)
+            SysActions.NONE -> {}
+            SysActions.ANDROID_PANEL, SysActions.ANDROID_QUICK -> if (!SysActions.runSystem(this, id)) action.open()
+            else -> SysActions.run(this, id)
         }
     }
 
-    override fun onTileClick(t: TileSpec, v: TileView) {
-        when (t.kind) {
-            TileKind.APP -> {
-                val e = repo.find(t) ?: run { toast("Esta app ya no está instalada"); return }
-                launchWithTurnstile(v) { repo.launch(e, v) }
-            }
-            TileKind.CALENDAR ->
-                if (!has(Manifest.permission.READ_CALENDAR)) requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), REQ_CAL)
-                else launchWithTurnstile(v) {
-                    startSafe(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR))
-                }
-            TileKind.WEATHER ->
-                if (prefs.city.isBlank() && !has(Manifest.permission.ACCESS_COARSE_LOCATION))
-                    requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOC)
-                else { toast("Actualizando el clima…"); refreshWeather(true) }
-            TileKind.PHOTOS ->
-                if (!has(photoPerm())) requestPermissions(arrayOf(photoPerm()), REQ_PHOTOS)
-                else launchWithTurnstile(v) {
-                    startSafe(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY))
-                }
-            TileKind.BATTERY -> startSafe(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
-        }
+    override fun openClock() { startSafe(Intent(AlarmClock.ACTION_SHOW_ALARMS)) }
+
+    override fun openCalendar() {
+        startSafe(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR))
     }
 
-    override fun onTilesChanged() = TileStore.save(prefs, start.grid.tiles)
+    override fun weatherTapped() {
+        if (prefs.city.isBlank() && !has(Manifest.permission.ACCESS_COARSE_LOCATION))
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOC)
+        else { toast("Actualizando el clima…"); refreshWeather(true) }
+    }
 
-    override fun onLayoutLocked() = toast("El diseño de Inicio está bloqueado. Puedes desbloquearlo en Personalizar.")
-
-    /** Botón de paleta en modo edición: color, nombre y visibilidad del nombre del mosaico. */
-    override fun onTileCustomize(t: TileSpec, v: TileView) {
+    private fun homeMenu(anchor: View) {
         val items = ArrayList<Pair<String, () -> Unit>>()
-        items += "Color del mosaico" to {
-            val appColor = repo.find(t)?.let { repo.color(it) }
-            colorSheet.show("Color del mosaico", t.color, palette.accent, appColor, { c -> setTileColor(t, v, c) }) {
-                val start = if (t.color > TileSpec.COLOR_ACCENT || t.color < 0) t.color else v.baseColor()
-                Pickers.askColor(this, palette, "Color personalizado", start or 0xFF000000.toInt()) { c -> setTileColor(t, v, c) }
-            }
+        items += "Personalizar inicio" to { openSettings("inicio") }
+        items += "Tema, colores y fuente" to { openSettings("tema") }
+        items += "Íconos" to { openSettings("iconos") }
+        items += "Gestos" to { openSettings("gestos") }
+        items += "Fondo de pantalla de Android" to {
+            startSafe(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Fondo de pantalla"))
         }
-        items += "Color del ícono y texto" to {
-            colorSheet.show("Color del ícono y texto", t.iconColor, iconColorOptions(true), { c ->
-                t.iconColor = c; v.invalidate(); onTilesChanged()
-            }) {
-                val cur = if (t.iconColor == TileSpec.COLOR_DEFAULT || t.iconColor == TileSpec.COLOR_ACCENT) Color.WHITE else t.iconColor
-                Pickers.askColor(this, palette, "Color del ícono", cur) { c -> t.iconColor = c; v.invalidate(); onTilesChanged() }
-            }
+        items += "Todos los ajustes de Mosaico" to { openSettings() }
+        menu.show(anchor, items)
+    }
+
+    override fun appMenu(e: AppEntry, anchor: View, place: String) {
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        val favs = prefs.favorites
+        val dock = prefs.dock
+        val inFav = e.key in favs
+        val inDock = e.key in dock
+        if (inFav) {
+            val i = favs.indexOf(e.key)
+            if (i > 0) items += "Subir" to { prefs.favorites = favs.toMutableList().also { java.util.Collections.swap(it, i, i - 1) }; home.renderApps() }
+            if (i < favs.size - 1) items += "Bajar" to { prefs.favorites = favs.toMutableList().also { java.util.Collections.swap(it, i, i + 1) }; home.renderApps() }
+            items += "Quitar de favoritos" to { prefs.favorites = favs - e.key; home.renderApps() }
+        } else items += "Agregar a favoritos" to {
+            prefs.favorites = favs + e.key; home.renderApps(); toast("${look.name(e)} está en tus favoritos")
         }
-        val currentName = t.label ?: repo.find(t)?.label ?: when (t.kind) {
-            TileKind.CALENDAR -> "Calendario"; TileKind.WEATHER -> "Clima"; TileKind.PHOTOS -> "Fotos"
-            TileKind.BATTERY -> "Batería"; TileKind.APP -> ""
-        }
+        if (inDock) {
+            val i = dock.indexOf(e.key)
+            if (place == "dock" && i > 0) items += "Mover a la izquierda" to { prefs.dock = dock.toMutableList().also { java.util.Collections.swap(it, i, i - 1) }; home.renderApps() }
+            if (place == "dock" && i < dock.size - 1) items += "Mover a la derecha" to { prefs.dock = dock.toMutableList().also { java.util.Collections.swap(it, i, i + 1) }; home.renderApps() }
+            items += "Quitar del dock" to { prefs.dock = dock - e.key; home.renderApps() }
+        } else if (dock.size < 6) items += "Agregar al dock" to { prefs.dock = dock + e.key; home.renderApps() }
         items += "Cambiar nombre" to {
-            Pickers.askText(this, palette, "Nombre del mosaico", currentName, "Nombre") { s ->
-                t.label = s.ifBlank { null }; v.invalidate(); onTilesChanged()
+            Pickers.askText(this, palette, "Nombre", look.name(e), e.label) { s ->
+                look.rename(e, s); home.renderApps(); if (drawer.isOpen) drawer.render()
             }
         }
-        if (t.kind == TileKind.APP && prefs.tilePreviews) {
-            items += (if (t.noPreview) "Mostrar vista previa de mensajes" else "Ocultar vista previa de mensajes") to {
-                t.noPreview = !t.noPreview; v.resetFace(); v.invalidate(); onTilesChanged()
-            }
+        items += "Ocultar del cajón" to {
+            prefs.hiddenApps = prefs.hiddenApps + e.key
+            repo.applyHidden(); if (drawer.isOpen) drawer.render()
+            toast("${look.name(e)} oculta. Puedes volver a mostrarla en Personalizar → Íconos.")
         }
-        items += (if (t.hideLabel) "Mostrar nombre" else "Ocultar nombre") to {
-            t.hideLabel = !t.hideLabel; v.invalidate(); onTilesChanged()
-        }
-        if (t.color != TileSpec.COLOR_DEFAULT || t.iconColor != TileSpec.COLOR_DEFAULT || t.label != null || t.hideLabel)
-            items += "Restablecer estilo" to {
-                t.color = TileSpec.COLOR_DEFAULT; t.iconColor = TileSpec.COLOR_DEFAULT
-                t.label = null; t.hideLabel = false; v.invalidate(); onTilesChanged()
-            }
-        menu.show(v, items)
+        items += "Información de la app" to { repo.appInfo(e) }
+        items += "Desinstalar" to { repo.uninstall(e) }
+        menu.show(anchor, items)
     }
 
-    private fun iconColorOptions(withAuto: Boolean): List<Triple<String, Int, Int>> {
-        val l = ArrayList<Triple<String, Int, Int>>()
-        if (withAuto) l += Triple("Automático", TileSpec.COLOR_DEFAULT, Color.WHITE)
-        l += Triple("Blanco", Color.WHITE, Color.WHITE)
-        l += Triple("Negro", Color.BLACK, Color.BLACK)
-        l += Triple("Énfasis", TileSpec.COLOR_ACCENT, palette.accent)
-        return l
-    }
+    // ---------- datos ----------
 
-    private fun setTileColor(t: TileSpec, v: TileView, c: Int) {
-        t.color = c; v.invalidate(); onTilesChanged()
+    private fun onAppsChanged() {
+        repo.load()
+        val keys = repo.allApps.map { it.key }.toSet()
+        prefs.favorites.filter { it !in keys }.let { gone -> if (gone.isNotEmpty()) prefs.favorites = prefs.favorites - gone.toSet() }
+        prefs.dock.filter { it !in keys }.let { gone -> if (gone.isNotEmpty()) prefs.dock = prefs.dock - gone.toSet() }
+        home.renderApps()
+        if (drawer.isOpen) drawer.render()
     }
 
     @Deprecated("API clásica de Activity")
@@ -475,77 +384,26 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
         super.onActivityResult(requestCode, resultCode, data)
         DefaultHome.onResult(this, requestCode)
     }
-    override fun onEditModeChanged(editing: Boolean) {}
-    override fun scroller(): ScrollView = start.scroll
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             REQ_CAL -> { lastCalendar = 0; refreshCalendar() }
             REQ_LOC -> refreshWeather(true)
-            REQ_PHOTOS -> { lastPhotos = 0; refreshPhotos() }
         }
     }
-
-    // ---------- lista de apps ----------
-
-    override fun launch(e: AppEntry, from: View) = repo.launch(e, from)
-
-    override fun showMenu(e: AppEntry, anchor: View) {
-        val pinned = start.grid.tiles.any { it.kind == TileKind.APP && it.pkg == e.pkg && it.cls == e.cls }
-        val items = ArrayList<Pair<String, () -> Unit>>()
-        if (pinned) items += "Desanclar de Inicio" to {
-            start.grid.removeWhere { it.kind == TileKind.APP && it.pkg == e.pkg && it.cls == e.cls }
-        } else items += "Anclar a Inicio" to {
-            start.grid.addTile(TileSpec.app(e, TileSize.MEDIUM))
-            appList.reset()
-            pager.goTo(0)
-            start.scrollToBottom()
-        }
-        items += "Ocultar de la lista" to {
-            prefs.hiddenApps = prefs.hiddenApps + e.key
-            repo.applyHidden(); appList.refresh()
-            toast("${e.label} oculta. Puedes volver a mostrarla en Personalizar.")
-        }
-        items += "Información de la app" to { repo.appInfo(e) }
-        items += "Desinstalar" to { repo.uninstall(e) }
-        menu.show(anchor, items)
-    }
-
-    private fun onAppsChanged(removedPkg: String?) {
-        repo.load()
-        if (removedPkg != null && repo.apps.none { it.pkg == removedPkg }) {
-            start.grid.removeWhere { it.kind == TileKind.APP && it.pkg == removedPkg }
-        }
-        appList.refresh()
-        start.grid.invalidateTiles()
-    }
-
-    // ---------- datos vivos ----------
-
-    private val flipLoop = object : Runnable {
-        override fun run() { start.grid.flipRandom(); main.postDelayed(this, 4000L + (0..2500).random()) }
-    }
-    private val photoLoop = object : Runnable {
-        override fun run() { start.grid.cyclePhotos(); main.postDelayed(this, 6000) }
-    }
-
-    private fun hasTile(k: TileKind) = start.grid.tiles.any { it.kind == k }
 
     private fun refreshAll(force: Boolean) {
         registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))?.let { readBattery(it) }
-        if (hasTile(TileKind.WEATHER)) refreshWeather(force)
-        if (hasTile(TileKind.CALENDAR)) refreshCalendar()
-        if (hasTile(TileKind.PHOTOS)) refreshPhotos()
-        start.grid.invalidateTiles()
+        if (prefs.showWeather) refreshWeather(force)
+        if (prefs.showEvent) refreshCalendar()
+        home.refreshInfo()
     }
 
     private fun updateBadges() {
         live.badges = NotifService.counts()
-        live.previews = if (prefs.tilePreviews) NotifService.previews(this) else emptyMap()
-        if (::start.isInitialized) start.grid.views().forEach { it.resetFace() }
         statusBar?.refresh()
-        if (::start.isInitialized) start.grid.invalidateTiles()
+        if (::home.isInitialized) { home.refreshBadges(); home.refreshMedia() }
     }
 
     private fun readBattery(i: Intent) {
@@ -559,6 +417,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
     private fun refreshWeather(force: Boolean) {
         if (!force && live.weather != null && System.currentTimeMillis() - prefs.weatherTime < 30 * 60_000L) return
         if (weatherLoading) return
+        if (prefs.city.isBlank() && !has(Manifest.permission.ACCESS_COARSE_LOCATION) && !force) return
         weatherLoading = true
         io.execute {
             val res = try { Result.success(Weather.fetch(this, prefs)) } catch (e: Throwable) { Result.failure(e) }
@@ -568,19 +427,12 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                     live.weather = it; live.weatherError = null
                     prefs.weatherJson = it.toJson(); prefs.weatherTime = System.currentTimeMillis()
                 }.onFailure {
-                    val msg = when (it) {
-                        is Weather.NeedsLocation -> "Toca para usar tu ubicación"
-                        is Weather.NoFix -> "Ubicación no disponible"
-                        else -> "Sin conexión"
-                    }
-                    if (live.weather == null) live.weatherError = msg
                     if (force) toast(when (it) {
-                        is Weather.NeedsLocation, is Weather.NoFix -> "Activa la ubicación o escribe tu ciudad en Personalizar"
+                        is Weather.NeedsLocation, is Weather.NoFix -> "Activa la ubicación o escribe tu ciudad en Personalizar → Clima"
                         else -> "No se pudo actualizar el clima"
                     })
                 }
-                start.grid.views().forEach { v -> v.resetFace() }
-                start.grid.invalidateTiles()
+                home.refreshInfo()
             }
         }
     }
@@ -594,7 +446,7 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
             val ev: CalEvent? = try {
                 val b = CalendarContract.Instances.CONTENT_URI.buildUpon()
                 ContentUris.appendId(b, now - 3_600_000L)
-                ContentUris.appendId(b, now + 7 * 86_400_000L)
+                ContentUris.appendId(b, now + 2 * 86_400_000L)
                 contentResolver.query(b.build(), arrayOf("title", "begin", "end", "allDay"), null, null, "begin ASC")?.use { c ->
                     var found: CalEvent? = null
                     while (c.moveToNext()) {
@@ -606,46 +458,21 @@ class MainActivity : Activity(), TileHost, TileGrid.Listener, AppListView.Callba
                     found
                 }
             } catch (e: Exception) { null }
-            main.post {
-                live.nextEvent = ev
-                start.grid.views().forEach { it.resetFace() }
-                start.grid.invalidateTiles()
-            }
-        }
-    }
-
-    private fun refreshPhotos() {
-        if (!has(photoPerm())) return
-        val now = System.currentTimeMillis()
-        if (now - lastPhotos < 10 * 60_000L && live.photos.isNotEmpty()) return
-        lastPhotos = now
-        io.execute {
-            val list = ArrayList<Bitmap>()
-            try {
-                val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                contentResolver.query(uri, arrayOf("_id"), null, null, "date_added DESC")?.use { c ->
-                    while (c.moveToNext() && list.size < 10) {
-                        try { list += contentResolver.loadThumbnail(ContentUris.withAppendedId(uri, c.getLong(0)), Size(420, 420), null) }
-                        catch (e: Exception) { }
-                    }
-                }
-            } catch (e: Exception) { }
-            main.post { live.photos = list; start.grid.invalidateTiles() }
+            main.post { live.nextEvent = ev; home.refreshInfo() }
         }
     }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_BATTERY_CHANGED -> readBattery(intent)
+                Intent.ACTION_BATTERY_CHANGED -> { readBattery(intent); home.refreshInfo() }
                 Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED -> {
-                    lastCalendar = 0; refreshCalendar()
+                    lastCalendar = 0; refreshCalendar(); home.tick()
                 }
-                else -> if (resumed) refreshCalendar()
+                else -> { home.tick(); if (resumed) refreshCalendar() }
             }
             action.updateClock()
             statusBar?.refresh()
-            start.grid.invalidateTiles()
         }
     }
 

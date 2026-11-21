@@ -19,6 +19,9 @@ object SysActions {
     const val RECENTS = 6
     const val SETTINGS = 7
     const val NONE = 8
+    const val MENU = 9
+    const val CAMERA = 10
+    const val MUSIC = 11
 
     /** Nombres en el mismo orden que los ids. */
     val NAMES = listOf(
@@ -31,6 +34,9 @@ object SysActions {
         "Apps recientes",
         "Personalizar Mosaico",
         "No hacer nada",
+        "Menú de Inicio",
+        "Abrir la cámara",
+        "Abrir la música",
     )
 
     /** Extra con el que se pide a MainActivity abrir la lista de apps o la búsqueda. */
@@ -47,6 +53,9 @@ object SysActions {
             APPS -> start(ctx, Intent(ctx, MainActivity::class.java).putExtra(EXTRA_OPEN, "apps"))
             SEARCH -> start(ctx, Intent(ctx, MainActivity::class.java).putExtra(EXTRA_OPEN, "search"))
             SETTINGS -> start(ctx, Intent(ctx, SettingsActivity::class.java))
+            CAMERA -> start(ctx, Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA))
+            MUSIC -> start(ctx, Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC))
+            MENU -> start(ctx, Intent(ctx, MainActivity::class.java))
             else -> runSystem(ctx, id)
         }
     }

@@ -22,8 +22,76 @@ class Prefs(ctx: Context) {
         e.apply()
     }
 
-    var dark: Boolean get() = b("dark", true); set(v) = put("dark", v)
-    var accent: Int get() = i("accent", 0xFF1BA1E2.toInt()); set(v) = put("accent", v)
+    /** 0 = tinta (oscuro), 1 = papel (claro), 2 = negro puro. */
+    var themeMode: Int get() = i("themeMode", if (b("dark", true)) 0 else 1); set(v) = put("themeMode", v)
+    var dark: Boolean get() = themeMode != 1; set(v) = put("themeMode", if (v) 0 else 1)
+    var accent: Int get() = i("accent", SAGE); set(v) = put("accent", v)
+    /** Fuente: 0 fina, 1 normal, 2 monoespaciada, 3 condensada, 4 serif. */
+    var font: Int get() = i("font", 0); set(v) = put("font", v)
+
+    // ---------- inicio minimalista ----------
+    /** 0 = fondo de Android, 1 = foto propia, 2 = color sólido, 3 = montañas (Mirador). */
+    var homeBg: Int get() = i("homeBg", 3); set(v) = put("homeBg", v)
+    /** Oscurecido sobre el fondo, en %. */
+    var homeDim: Int get() = i("homeDim", 15); set(v) = put("homeDim", v)
+    /** Reloj: 0 grande y fino, 1 mediano, 2 apilado (hora sobre minutos), 3 oculto. */
+    var clockStyle: Int get() = i("clockStyle", 0); set(v) = put("clockStyle", v)
+    /** Alineación de los widgets y favoritos: 0 izquierda, 1 centro, 2 derecha. */
+    var homeAlign: Int get() = i("homeAlign", 1); set(v) = put("homeAlign", v)
+    var favAlign: Int get() = i("favAlign", 1); set(v) = put("favAlign", v)
+    /** Posición de los favoritos: 0 debajo del reloj, 1 al centro, 2 abajo (cerca del pulgar). */
+    var favPos: Int get() = i("favPos", 2); set(v) = put("favPos", v)
+    var showDate: Boolean get() = b("showDate", true); set(v) = put("showDate", v)
+    var showGreeting: Boolean get() = b("showGreeting", true); set(v) = put("showGreeting", v)
+    var greetName: String get() = s("greetName") ?: "Berny"; set(v) = put("greetName", v)
+    var showWeather: Boolean get() = b("showWeather", true); set(v) = put("showWeather", v)
+    var showBattery: Boolean get() = b("showBattery", true); set(v) = put("showBattery", v)
+    var showEvent: Boolean get() = b("showEvent", true); set(v) = put("showEvent", v)
+    var showMedia: Boolean get() = b("showMedia", true); set(v) = put("showMedia", v)
+    /** Favoritos en Inicio (claves de app, en orden). */
+    var favorites: List<String>
+        get() = (s("favorites") ?: "").split("|").filter { it.isNotBlank() }
+        set(v) = put("favorites", v.joinToString("|"))
+    /** 0 = solo texto, 1 = ícono y texto, 2 = solo íconos. */
+    var favStyle: Int get() = i("favStyle", 0); set(v) = put("favStyle", v)
+    /** Tamaño del texto de los favoritos en sp. */
+    var favSize: Int get() = i("favSize", 24); set(v) = put("favSize", v)
+    var favSpacing: Int get() = i("favSpacing", 14); set(v) = put("favSpacing", v)
+    /** Barra de apps fija abajo. */
+    var dockOn: Boolean get() = b("dockOn", true); set(v) = put("dockOn", v)
+    var dock: List<String>
+        get() = (s("dock") ?: "").split("|").filter { it.isNotBlank() }
+        set(v) = put("dock", v.joinToString("|"))
+    /** Nombres propios de las apps (clave → nombre), en JSON. */
+    var renamesJson: String? get() = s("renames"); set(v) = put("renames", v)
+    /** Forma detrás de los íconos: 0 ninguna, 1 círculo, 2 cuadrado suave, 3 cuadrado. */
+    var iconShape: Int get() = i("iconShape", 2); set(v) = put("iconShape", v)
+    /** Color de la forma: 0 = del tema, 1 = del énfasis, 2 = personalizado. */
+    var shapeColorMode: Int get() = i("shapeColorMode", 0); set(v) = put("shapeColorMode", v)
+    var shapeColor: Int get() = i("shapeColor", 0xFF1B2127.toInt()); set(v) = put("shapeColor", v)
+    /** Color de los íconos de silueta o monocromáticos: 0 = del tema, 1 = énfasis, 2 = personalizado. */
+    var glyphColorMode: Int get() = i("glyphColorMode", 0); set(v) = put("glyphColorMode", v)
+    var glyphColor: Int get() = i("glyphColor", 0xFFE9E4DA.toInt()); set(v) = put("glyphColor", v)
+
+    // ---------- cajón de apps ----------
+    /** 0 = lista, 1 = cuadrícula. */
+    var drawerStyle: Int get() = i("drawerStyle", 0); set(v) = put("drawerStyle", v)
+    var drawerColumns: Int get() = i("drawerColumns", 4); set(v) = put("drawerColumns", v)
+    var drawerKeyboard: Boolean get() = b("drawerKeyboard", false); set(v) = put("drawerKeyboard", v)
+    var drawerLetters: Boolean get() = b("drawerLetters", true); set(v) = put("drawerLetters", v)
+    var drawerIcons: Boolean get() = b("drawerIcons", true); set(v) = put("drawerIcons", v)
+    /** Opacidad del fondo del cajón en %. */
+    var drawerOpacity: Int get() = i("drawerOpacity", 92); set(v) = put("drawerOpacity", v)
+    /** Abre la app sola cuando la búsqueda deja un único resultado. */
+    var drawerAutoLaunch: Boolean get() = b("drawerAutoLaunch", false); set(v) = put("drawerAutoLaunch", v)
+
+    // ---------- gestos extra ----------
+    var gestureUp: Int get() = i("gestureUp", SysActions.APPS); set(v) = put("gestureUp", v)
+    var gestureLeft: Int get() = i("gestureLeft", SysActions.SEARCH); set(v) = put("gestureLeft", v)
+    var gestureRight: Int get() = i("gestureRight", SysActions.NONE); set(v) = put("gestureRight", v)
+    var gestureLong: Int get() = i("gestureLong", SysActions.MENU); set(v) = put("gestureLong", v)
+    /** Ya se aplicaron los valores por defecto del launcher minimalista (2.0). */
+    var minimalMigrated: Boolean get() = b("minimalMigrated", false); set(v) = put("minimalMigrated", v)
 
     /** true = cada mosaico toma el color de su app; false = color de énfasis. */
     var appColors: Boolean get() = b("appColors", false); set(v) = put("appColors", v)
@@ -47,7 +115,7 @@ class Prefs(ctx: Context) {
     var iconScale: Int get() = i("iconScale", 100); set(v) = put("iconScale", v)
     var iconPack: String get() = s("iconPack") ?: ""; set(v) = put("iconPack", v)
     /** 0 = colores originales, 1 = monocromático cuando la app lo trae, 2 = silueta para todas. */
-    var iconStyle: Int get() = i("iconStyle", if (monoIcons) 1 else 0); set(v) = put("iconStyle", v)
+    var iconStyle: Int get() = i("iconStyle", 2); set(v) = put("iconStyle", v)
     /** Color de íconos y texto de los mosaicos (ARGB) o TileSpec.COLOR_ACCENT. */
     var tileFg: Int get() = i("tileFg", 0xFFFFFFFF.toInt()); set(v) = put("tileFg", v)
     /** Radio de las esquinas de los mosaicos en dp (0 = cuadrados, como el original). */
@@ -58,7 +126,7 @@ class Prefs(ctx: Context) {
     /** Barra de navegación propia dentro de Mosaico (oculta la de Android en Inicio). */
     var navInLauncher: Boolean get() = b("navInLauncher", true); set(v) = put("navInLauncher", v)
     /** 0 = negra, 1 = igual al fondo, 2 = color de énfasis. */
-    var navColor: Int get() = i("navColor", 0); set(v) = put("navColor", v)
+    var navColor: Int get() = i("navColor", 1); set(v) = put("navColor", v)
 
     /** Barra de estado propia dentro de Mosaico (oculta la de Android en Inicio). */
     var statusInLauncher: Boolean get() = b("statusInLauncher", true); set(v) = put("statusInLauncher", v)
@@ -72,7 +140,7 @@ class Prefs(ctx: Context) {
     /** 0 = pequeña, 1 = normal, 2 = grande. */
     var lockClockSize: Int get() = i("lockClockSize", 1); set(v) = put("lockClockSize", v)
     /** 0 = abajo a la izquierda (W10M), 1 = centrada arriba. */
-    var lockClockPos: Int get() = i("lockClockPos", 0); set(v) = put("lockClockPos", v)
+    var lockClockPos: Int get() = i("lockClockPos", 1); set(v) = put("lockClockPos", v)
     var lockShowDate: Boolean get() = b("lockShowDate", true); set(v) = put("lockShowDate", v)
     var lockShowEvent: Boolean get() = b("lockShowEvent", true); set(v) = put("lockShowEvent", v)
     /** Oscurecido del fondo de bloqueo en % (0 a 80). */
@@ -113,7 +181,7 @@ class Prefs(ctx: Context) {
     var acRows: Int get() = i("acRows", 1); set(v) = put("acRows", v)
     var acStartExpanded: Boolean get() = b("acStartExpanded", false); set(v) = put("acStartExpanded", v)
     /** Radio de las esquinas de los botones en dp. */
-    var acRadius: Int get() = i("acRadius", 0); set(v) = put("acRadius", v)
+    var acRadius: Int get() = i("acRadius", 18); set(v) = put("acRadius", v)
     var acLabels: Boolean get() = b("acLabels", true); set(v) = put("acLabels", v)
     /** 0 = igual al fondo, 1 = negro, 2 = personalizado. */
     var acBg: Int get() = i("acBg", 0); set(v) = put("acBg", v)
@@ -151,9 +219,21 @@ class Prefs(ctx: Context) {
     var version: Int get() = i("version", 0); set(v) = put("version", v)
     fun bump() { version = version + 1 }
 
-    fun palette() = Palette(dark, accent)
+    fun palette() = Palette(themeMode, accent)
+
+    /** Al pasar de la versión de mosaicos al launcher minimalista, se adoptan los nuevos valores por defecto. */
+    fun migrateToMinimal() {
+        if (minimalMigrated) return
+        val e = sp.edit()
+        for (k in listOf("accent", "dark", "bgMode", "acRadius", "lockClockPos", "navColor", "iconStyle", "statusBg"))
+            e.remove(k)
+        e.putBoolean("minimalMigrated", true).apply()
+        bump()
+    }
 
     companion object {
+        const val SAGE = 0xFF9CC5A8.toInt()
+
         /** Todos los botones de acción rápida, con su nombre, en el orden por defecto. */
         val ALL_TOGGLES: List<Pair<String, String>> = listOf(
             "wifi" to "Wi-Fi", "bt" to "Bluetooth", "torch" to "Linterna", "rotation" to "Rotación",
@@ -166,6 +246,11 @@ class Prefs(ctx: Context) {
         val DEFAULT_TOGGLES: List<String> = ALL_TOGGLES.take(12).map { it.first }
 
         val ACCENTS: List<Pair<String, Int>> = listOf(
+            "Salvia" to SAGE,
+            "Crema" to 0xFFE9E4DA.toInt(),
+            "Atardecer" to 0xFFE0A85B.toInt(),
+            "Cielo" to 0xFF8FB3D9.toInt(),
+            "Cancha" to 0xFF5FAF6E.toInt(),
             "Lima" to 0xFFA4C400.toInt(),
             "Verde" to 0xFF60A917.toInt(),
             "Esmeralda" to 0xFF008A00.toInt(),

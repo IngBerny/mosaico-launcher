@@ -1,73 +1,43 @@
-# Mosaico: launcher para Android con estilo Windows 10 Mobile
+# Mosaico: launcher minimalista para Android
 
-Launcher nativo (Kotlin, sin librerías externas) que recrea la experiencia de Windows 10 Mobile:
-Live Tiles, lista de apps alfabética y Centro de actividades.
+Launcher nativo (Kotlin, sin librerías externas), minimalista y con mucha personalización.
+Su tema por defecto, **Mirador**, usa tres colores (tinta, crema y salvia), letras finas y un fondo de montañas
+al anochecer que cambia con tu color de énfasis.
 
 ## Qué incluye
 
-**Pantalla de Inicio**
-- Mosaicos pequeños, medianos, anchos y grandes en cuadrícula de 4 columnas (o 6 con "Mostrar más mosaicos").
-- Mantén presionado un mosaico para entrar al modo edición: arrástralo para moverlo, ⊘ para desanclarlo y ↘ para cambiarle el tamaño.
-- Efecto de inclinación (tilt) al tocar y animación de giro (turnstile) al abrir apps.
-- Contadores de notificaciones en los mosaicos (99+), como en el original.
-- Vista previa de mensajes: los mosaicos anchos y grandes de apps como WhatsApp muestran quién escribió, el mensaje y la foto del contacto; los medianos se voltean para mostrarlo. Se puede apagar en general o por mosaico.
-- Tres estilos de fondo: fondo de pantalla de Android con mosaicos translúcidos, una foto tuya *dentro* de los mosaicos (el efecto de W10M) o color sólido.
+**Pantalla de inicio**
+- Saludo con tu nombre ("Buenas noches, Berny"), hora grande y fina (o mediana, apilada u oculta) y fecha.
+- Una línea discreta con el clima, la batería y tu próximo evento.
+- Lo que está sonando (Spotify, YouTube Music…) con controles de anterior, pausa y siguiente.
+- Favoritos como texto, ícono y texto o solo íconos; arriba, al centro o abajo cerca del pulgar; alineados a la
+  izquierda, al centro o a la derecha. Puntos de color cuando una app tiene notificaciones.
+- Dock con hasta 6 apps.
+- Fondo: montañas, fondo de pantalla de Android, foto propia o color sólido, con oscurecido ajustable.
+- Gestos configurables: deslizar arriba, abajo, izquierda y derecha, doble toque y mantener presionado.
 
-**Mosaicos dinámicos (Live Tiles)**
-- **Calendario:** día y fecha, y tu próximo evento; se voltea entre las dos caras.
-- **Clima:** temperatura actual y pronóstico de 3 días (Open-Meteo, sin clave de API), con íconos de línea.
-- **Fotos:** pasa tus fotos recientes con fundido.
-- **Batería:** porcentaje y estado de carga.
+**Cajón de apps** (desliza hacia arriba)
+- Lista con letras de sección o cuadrícula de 3 a 6 columnas. Búsqueda sin acentos, búsqueda en la web si no hay
+  resultados y opción de abrir la app sola cuando queda una.
+- Mantén presionada una app para agregarla a favoritos o al dock, cambiarle el nombre, ocultarla, ver su información
+  o desinstalarla. Se cierra deslizando hacia abajo.
 
-**Lista de apps** (desliza a la izquierda desde Inicio)
-- Orden alfabético con encabezados; toca una letra para abrir la cuadrícula A–Z.
-- Buscador y sección "Agregadas recientemente".
-- Mantén presionada una app para anclarla a Inicio, ver su información o desinstalarla.
+**Íconos**
+- Colores originales, monocromáticos o silueta de un solo color; forma de fondo (ninguna, círculo, cuadrado suave o
+  cuadrado), color de la forma y del ícono, tamaño y paquetes de íconos.
 
-**Centro de actividades** (desliza hacia abajo en Inicio)
-- Acciones rápidas: Wi-Fi, Bluetooth, linterna, rotación, ubicación, modo avión, horas de silencio, ahorro de batería, datos, zona Wi-Fi, cámara y configuración.
-- Notificaciones agrupadas por app: tócalas para abrirlas, deslízalas para descartarlas o usa "Borrar todo".
+**Tema**
+- Tinta (oscuro), papel (claro) o negro puro; color de énfasis (Salvia, Crema, Atardecer, Cielo, Cancha y más, o
+  cualquier color) y fuente (fina, normal, monoespaciada, condensada o serif).
 
-**Personalizar**
-- Tema oscuro o claro, los 20 colores de énfasis originales o un color libre (tono, saturación, brillo o código hex).
-- Color propio para cada mosaico (énfasis, color de la app, transparente, cualquiera de la paleta o uno libre), además de cambiarle el nombre u ocultarlo. En modo edición, toca el botón de paleta.
-- Paquetes de íconos de Google Play (formato ADW/Nova) y tamaño de íconos ajustable.
-- Estilo de íconos: colores originales, monocromáticos o silueta de un solo color para todas las apps.
-- Color de íconos y texto: blanco, negro, énfasis o cualquiera, en general o por mosaico.
-- Esquinas redondeadas y tamaño del texto de los mosaicos.
-- Ocultar los nombres de todos los mosaicos, espacio entre mosaicos y 4 o 6 columnas.
-- Bloquear el diseño de Inicio para no moverlo por accidente.
-- Ocultar apps de la lista.
+**Barra de estado, Centro de actividades y pantalla de bloqueo propios**
+- **Barra de estado:** fondo, colores, qué mostrar, posición de la hora, tamaño y qué pasa al tocarla o deslizarla.
+- **Centro de actividades** (no usa el panel de Android): botones a elegir y en tu orden, columnas, filas, esquinas,
+  colores, opacidad, barra de brillo y notificaciones agrupadas o en orden de llegada.
+- **Pantalla de bloqueo:** tamaño y posición de la hora, fecha, evento, notificaciones y oscurecido.
+- Con el **Tema para todo el teléfono** (servicio de accesibilidad opcional) se usan en todas las apps.
 
-**Barra de navegación propia**
-- Dentro de Mosaico, la barra de Android se oculta y aparece la de Mosaico: ← atrás, Inicio y buscar.
-- Opcional, en todo el teléfono: un servicio de accesibilidad dibuja la barra de Mosaico encima de la de Android
-  en todas las apps. Mantén presionado ← para ver las apps recientes, o Inicio para el asistente. Requiere navegación con 3 botones
-  y, en Android 13+, "Permitir ajustes restringidos" en la información de la app. Se oculta sola en pantalla completa y con el teléfono bloqueado.
-
-**Tema para todo el teléfono** (servicio de accesibilidad opcional)
-- Barra de estado estilo W10M (señal, Wi-Fi, batería, hora) encima de la de Android. Tócala o deslízala para abrir el Centro de actividades desde cualquier app.
-- Pantalla de bloqueo estilo W10M: hora grande, fecha, próximo evento y notificaciones. Al deslizarla hacia arriba aparece el bloqueo real de Android
-  (PIN, patrón o huella), así que la seguridad no cambia. No aparece durante las llamadas.
-- Dentro de Mosaico, la barra de estado de Android también se reemplaza por la de Mosaico.
-
-**Personalizar todo, al estilo Nova** (Personalizar está organizado por secciones)
-- **Barra de estado:** fondo (automático, transparente, negro, tema, énfasis o cualquier color), color de íconos y texto,
-  qué mostrar (señal, Wi-Fi, modos, contador de notificaciones, ícono y porcentaje de batería, hora), posición de la hora
-  (derecha, centro o izquierda), tamaño del texto y qué pasa al tocarla o deslizarla.
-- **Centro de actividades propio** (no usa el panel de Android): eliges qué botones aparecen y en qué orden, de 3 a 6 columnas,
-  cuántas filas se ven contraído, abrir siempre expandido, con o sin nombres, esquinas, color y opacidad del panel, color de los
-  botones encendidos, barra de brillo, encabezado, notificaciones agrupadas por app o en orden de llegada y tamaño del texto.
-  Botones nuevos: bloquear pantalla, captura de pantalla, volumen y brillo automático.
-- **Pantalla de bloqueo:** tamaño y posición de la hora, fecha, próximo evento, notificaciones y oscurecido del fondo.
-- **Gestos:** deslizar hacia abajo y doble toque en Inicio, y tocar o deslizar la barra de estado. Cada uno puede abrir el
-  Centro de actividades, el panel o los ajustes rápidos de Android, la lista de apps, la búsqueda, bloquear la pantalla,
-  las apps recientes o Personalizar.
-- **Copia de seguridad:** exporta e importa todos tus ajustes y el diseño de Inicio en un archivo, o restablece todo.
-
-**Launcher predeterminado**
-- Al abrirlo por primera vez aparece el diálogo de Android "¿Usar Mosaico como app de inicio?".
-- Si todavía no es el predeterminado, Inicio muestra un aviso con el botón "Establecer".
+**Copia de seguridad:** exporta e importa todos tus ajustes, o restablece todo.
 
 ## Compilar e instalar
 
@@ -93,14 +63,15 @@ El APK se firma con `app/mosaico-release.jks` (contraseña en `app/keystore.prop
 versión se instale encima de la anterior. Si algún día publicas la app en Google Play, crea una clave nueva y privada.
 
 ## Primeros pasos recomendados
-- En **Personalizar → Permisos**, activa el acceso a **Notificaciones** (contadores y Centro de actividades).
-- Toca los mosaicos de Calendario, Clima y Fotos para darles permiso. Para el clima también puedes escribir tu ciudad.
+- En **Personalizar → Permisos**, activa el acceso a **Notificaciones** (puntos en las apps, lo que está sonando y Centro de actividades).
+- Para el clima, permite la ubicación o escribe tu ciudad en **Personalizar → Clima**. Para el próximo evento, permite el calendario.
+- Mantén presionado el inicio para abrir el menú rápido de personalización.
 
 ## Limitaciones de Android
 - Android no deja que ninguna app (tampoco Nova) borre su barra de estado, su panel ni su bloqueo. Mosaico los **tapa** con los
   suyos mediante el servicio de accesibilidad; los de Android siguen existiendo debajo (por ejemplo, si deslizas desde el borde
   en una app a pantalla completa).
-- Los íconos son los de cada app. Con "Íconos monocromáticos", las apps compatibles muestran su versión blanca, como en W10M.
-- La rotación y "horas de silencio" necesitan permisos especiales que la app te pide la primera vez.
+- Mosaico no muestra widgets de otras apps de Android.
+- La rotación, el brillo y "horas de silencio" necesitan permisos especiales que la app te pide la primera vez.
 
-Proyecto independiente, sin relación con Microsoft. No usa logotipos ni marcas de Microsoft.
+Proyecto independiente.

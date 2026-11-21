@@ -394,7 +394,7 @@ class ActionCenter(ctx: Context, private val host: TileHost) : FrameLayout(ctx) 
     private fun renderNotifications() {
         notifBox.removeAllViews()
         if (!NotifService.hasAccess(context)) {
-            notifBox.addView(context.label("Para ver tus notificaciones aquí y los contadores en los mosaicos, " +
+            notifBox.addView(context.label("Para ver tus notificaciones aquí, los puntos en tus apps y lo que está sonando, " +
                 "activa el acceso a notificaciones de Mosaico.", 15f, pal.sub, Fonts.light).apply {
                 setPadding(dpi(6), dpi(16), dpi(6), dpi(8))
             })

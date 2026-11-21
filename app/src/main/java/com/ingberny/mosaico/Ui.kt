@@ -32,16 +32,34 @@ object Fonts {
     val light: Typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
     val regular: Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     val medium: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    val mono: Typeface = Typeface.MONOSPACE
+    val condensed: Typeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
+    val serif: Typeface = Typeface.create("serif", Typeface.NORMAL)
+
+    val NAMES = listOf("Fina", "Normal", "Monoespaciada", "Condensada", "Serif")
+
+    /** Fuente elegida en Personalizar → Tema. [big] = para la hora y títulos grandes. */
+    fun pick(style: Int, big: Boolean = false): Typeface = when (style) {
+        1 -> regular
+        2 -> mono
+        3 -> condensed
+        4 -> serif
+        else -> if (big) thin else light
+    }
 }
 
-/** Colores del tema estilo "Metro". */
-class Palette(val dark: Boolean, val accent: Int) {
-    val bg: Int = if (dark) Color.BLACK else Color.WHITE
-    val fg: Int = if (dark) Color.WHITE else Color.BLACK
-    val sub: Int = if (dark) 0xFF9A9A9A.toInt() else 0xFF6B6B6B.toInt()
-    val chrome: Int = if (dark) 0xFF1F1F1F.toInt() else 0xFFEDEDED.toInt()
-    val toggleOff: Int = if (dark) 0xFF333333.toInt() else 0xFFD6D6D6.toInt()
-    val line: Int = if (dark) 0xFF3A3A3A.toInt() else 0xFFCCCCCC.toInt()
+/**
+ * Colores del tema "Mirador": tinta, crema y salvia.
+ * [mode]: 0 = tinta (oscuro), 1 = papel (claro), 2 = negro puro (AMOLED).
+ */
+class Palette(val mode: Int, val accent: Int) {
+    val dark: Boolean = mode != 1
+    val bg: Int = when (mode) { 1 -> 0xFFF4F1EA.toInt(); 2 -> Color.BLACK; else -> 0xFF0E1317.toInt() }
+    val fg: Int = if (dark) 0xFFE9E4DA.toInt() else 0xFF1B2127.toInt()
+    val sub: Int = if (dark) 0xFF8E949A.toInt() else 0xFF6E7378.toInt()
+    val chrome: Int = when (mode) { 1 -> 0xFFE6E1D7.toInt(); 2 -> 0xFF151515.toInt(); else -> 0xFF1B2127.toInt() }
+    val toggleOff: Int = when (mode) { 1 -> 0xFFD9D4CA.toInt(); 2 -> 0xFF222222.toInt(); else -> 0xFF262E35.toInt() }
+    val line: Int = when (mode) { 1 -> 0xFFCFC9BD.toInt(); 2 -> 0xFF2A2A2A.toInt(); else -> 0xFF2C353C.toInt() }
 }
 
 fun Context.label(

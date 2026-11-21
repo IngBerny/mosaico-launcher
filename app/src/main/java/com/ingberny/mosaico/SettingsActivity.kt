@@ -197,14 +197,15 @@ class SettingsActivity : Activity() {
     private class Page(val id: String, val title: String, val desc: String)
 
     private val pages = listOf(
-        Page("tema", "Tema y colores", "Oscuro o claro, color de énfasis"),
-        Page("inicio", "Inicio y mosaicos", "Fondo, tamaño, espacio, esquinas, mosaicos dinámicos"),
-        Page("iconos", "Íconos", "Paquetes de íconos, estilo, color y tamaño, apps ocultas"),
+        Page("tema", "Tema, colores y fuente", "Tinta, papel o negro puro, color de énfasis, fuente"),
+        Page("inicio", "Pantalla de inicio", "Fondo, saludo, reloj, clima, música, favoritos y dock"),
+        Page("iconos", "Íconos", "Estilo, forma, color, tamaño, paquetes de íconos, apps ocultas"),
+        Page("cajon", "Cajón de apps", "Lista o cuadrícula, búsqueda, letras"),
         Page("barra", "Barra de estado", "Colores, qué íconos mostrar, posición de la hora"),
         Page("centro", "Centro de actividades", "Botones, orden, columnas, brillo y notificaciones"),
         Page("bloqueo", "Pantalla de bloqueo", "Fondo, hora, fecha, evento y notificaciones"),
         Page("navegacion", "Barra de navegación", "Atrás, Inicio y buscar"),
-        Page("gestos", "Gestos", "Deslizar, doble toque y toques en la barra de estado"),
+        Page("gestos", "Gestos", "Deslizar en las 4 direcciones, doble toque, mantener presionado"),
         Page("sistema", "Tema para todo el teléfono", "Usar las barras y el bloqueo de Mosaico en todas las apps"),
         Page("clima", "Clima", "Unidades y ciudad"),
         Page("permisos", "Permisos", "Notificaciones, calendario, ubicación, fotos y ajustes"),
@@ -279,6 +280,7 @@ class SettingsActivity : Activity() {
             "tema" -> pageTheme()
             "inicio" -> pageStart()
             "iconos" -> pageIcons()
+            "cajon" -> pageDrawer()
             "barra" -> pageStatus()
             "centro" -> pageCenter()
             "bloqueo" -> pageLock()
@@ -311,15 +313,18 @@ class SettingsActivity : Activity() {
         pages.forEach { p -> navRow(p.title, p.desc) { openPage(p.id) } }
 
         section("Acerca de")
-        caption("Mosaico 1.6 · Launcher inspirado en el diseño de Windows 10 Mobile.\n" +
-            "Proyecto independiente, sin relación con Microsoft. Clima: Open-Meteo.")
+        caption("Mosaico 2.0 · Launcher minimalista, hecho en Heredia, Costa Rica.\n" +
+            "Proyecto independiente. Clima: Open-Meteo.")
     }
 
     private fun pageTheme() {
-        section("Fondo")
-        choice(listOf("Oscuro", "Claro"), if (prefs.dark) 0 else 1) { prefs.dark = it == 0; changed(true) }
+        section("Modo")
+        choice(listOf("Tinta (oscuro)", "Papel (claro)", "Negro puro (AMOLED)"), prefs.themeMode.coerceIn(0, 2)) {
+            prefs.themeMode = it; changed(true)
+        }
 
         section("Color de énfasis")
+        caption("Se usa en detalles: puntos de notificación, letras del cajón, botones encendidos y montañas.")
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         Prefs.ACCENTS.chunked(5).forEach { chunk ->
             val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -328,17 +333,17 @@ class SettingsActivity : Activity() {
                     val p = Paint(Paint.ANTI_ALIAS_FLAG)
                     override fun onDraw(c: Canvas) {
                         p.style = Paint.Style.FILL; p.color = col
-                        c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), p)
+                        val rad = height / 2f
+                        c.drawRoundRect(dp(4f), dp(4f), width - dp(4f), height - dp(4f), rad, rad, p)
                         if (col == prefs.accent) {
-                            p.style = Paint.Style.STROKE; p.strokeWidth = dp(3f); p.color = pal.fg
-                            c.drawRect(dp(1.5f), dp(1.5f), width - dp(1.5f), height - dp(1.5f), p)
-                            Glyphs.draw(c, G.CHECK, width / 2f, height / 2f, width * 0.35f, Color.WHITE, 1.5f)
+                            p.style = Paint.Style.STROKE; p.strokeWidth = dp(2f); p.color = pal.fg
+                            c.drawRoundRect(dp(1f), dp(1f), width - dp(1f), height - dp(1f), rad, rad, p)
                         }
                     }
                 }
                 sw.contentDescription = name
                 sw.setOnClickListener { prefs.accent = col; changed(true) }
-                r.addView(sw, LinearLayout.LayoutParams(0, dpi(58), 1f).apply { setMargins(dpi(3), dpi(3), dpi(3), dpi(3)) })
+                r.addView(sw, LinearLayout.LayoutParams(0, dpi(44), 1f).apply { setMargins(dpi(3), dpi(3), dpi(3), dpi(3)) })
             }
             grid.addView(r)
         }
@@ -348,97 +353,116 @@ class SettingsActivity : Activity() {
             Pickers.askColor(this, pal, "Color de énfasis", prefs.accent) { prefs.accent = it; changed(true) }
         }
 
-        section("Color de los mosaicos")
-        choice(listOf("Color de énfasis", "Color de cada app"), if (prefs.appColors) 1 else 0) { prefs.appColors = it == 1; changed() }
+        section("Fuente")
+        choice(Fonts.NAMES, prefs.font.coerceIn(0, Fonts.NAMES.size - 1)) { prefs.font = it; changed() }
     }
 
     private fun pageStart() {
-        section("Imagen de fondo de Inicio")
-        choice(listOf("Fondo de pantalla de Android (mosaicos translúcidos)", "Foto propia dentro de los mosaicos",
-            "Color sólido (estilo clásico)"), prefs.bgMode) { m ->
-            if (m == 1 && !File(filesDir, "backdrop.jpg").exists()) pickImage()
-            else { prefs.bgMode = m; changed() }
-        }
-        if (prefs.bgMode == 1) link("Elegir otra foto") { pickImage() }
-        if (prefs.bgMode == 0) {
-            link("Cambiar el fondo de pantalla de Android") {
-                go(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Fondo de pantalla"))
+        section("Fondo")
+        choice(listOf("Montañas (cambian con tu color de énfasis)", "Fondo de pantalla de Android", "Foto propia", "Color sólido del tema"),
+            when (prefs.homeBg) { 3 -> 0; 0 -> 1; 1 -> 2; else -> 3 }) { i ->
+            when (i) {
+                0 -> { prefs.homeBg = 3; changed() }
+                1 -> { prefs.homeBg = 0; changed() }
+                2 -> if (!File(filesDir, "backdrop.jpg").exists()) pickImage() else { prefs.homeBg = 1; changed() }
+                else -> { prefs.homeBg = 2; changed() }
             }
-            slider({ "Opacidad de los mosaicos: $it%" }, 20, 100, prefs.tileOpacity) { prefs.tileOpacity = it; changed() }
         }
+        if (prefs.homeBg == 1) link("Elegir otra foto") { pickImage() }
+        if (prefs.homeBg == 0) link("Cambiar el fondo de pantalla de Android") {
+            go(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Fondo de pantalla"))
+        }
+        slider({ "Oscurecer el fondo: $it%" }, 0, 80, prefs.homeDim) { prefs.homeDim = it; changed() }
 
-        section("Mosaicos")
-        caption("Para cambiar el color o el nombre de un solo mosaico: mantenlo presionado y toca el botón de paleta (esquina superior izquierda).")
-        switchRow("Mostrar más mosaicos", "Seis columnas en lugar de cuatro", prefs.moreTiles) { prefs.moreTiles = it; prefs.bump() }
-        switchRow("Vista previa de mensajes",
-            "Los mosaicos medianos, anchos y grandes de apps como WhatsApp muestran quién te escribió y el mensaje. Necesita el acceso a notificaciones.",
-            prefs.tilePreviews) { prefs.tilePreviews = it; prefs.bump() }
-        switchRow("Ocultar nombres", "Muestra solo los íconos en todos los mosaicos", prefs.hideLabels) { prefs.hideLabels = it; prefs.bump() }
-        subtitle("Espacio entre mosaicos")
-        choice(listOf("Juntos", "Normal", "Separados"), prefs.tileGap) { prefs.tileGap = it; changed() }
-        slider({ "Esquinas de los mosaicos: ${if (it == 0) "cuadradas" else "$it dp"}" }, 0, 24, prefs.tileRadius) {
-            prefs.tileRadius = it; changed()
+        section("Saludo, hora y fecha")
+        switchRow("Saludo", "\"Buenos días\", \"Buenas tardes\" o \"Buenas noches\" con tu nombre", prefs.showGreeting) {
+            prefs.showGreeting = it; changed()
         }
-        subtitle("Tamaño del texto")
-        val scales = listOf(85, 100, 120)
-        choice(listOf("Pequeño", "Normal", "Grande"), scales.indexOf(prefs.textScale).let { if (it < 0) 1 else it }) {
-            prefs.textScale = scales[it]; changed()
-        }
-        switchRow("Bloquear diseño de Inicio", "Evita mover, redimensionar o desanclar mosaicos por accidente",
-            prefs.lockLayout) { prefs.lockLayout = it; prefs.bump() }
-        switchRow("Animación de giro al abrir apps", "El efecto \"turnstile\" de los mosaicos", prefs.turnstile) { prefs.turnstile = it; prefs.bump() }
-        switchRow("Mostrar \"Todas las apps\" al final", "Los enlaces debajo de los mosaicos", prefs.showFooter) { prefs.showFooter = it; prefs.bump() }
-
-        section("Mosaicos dinámicos")
-        caption("Ánclalos a Inicio y luego mantenlos presionados para moverlos o cambiarles el tamaño.")
-        val liveRow = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        listOf("Calendario" to TileKind.CALENDAR, "Clima" to TileKind.WEATHER, "Fotos" to TileKind.PHOTOS, "Batería" to TileKind.BATTERY)
-            .forEach { (name, kind) ->
-                liveRow.addView(LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dpi(6), 0, dpi(6))
-                    addView(label(name, 17f, pal.fg, Fonts.regular), LinearLayout.LayoutParams(0, -2, 1f))
-                    addView(button("Anclar") { pinLive(kind, name) })
-                })
+        if (prefs.showGreeting) {
+            val name = EditText(this).apply {
+                setText(prefs.greetName); hint = "Tu nombre (opcional)"; setHintTextColor(pal.sub); setTextColor(pal.fg)
+                isSingleLine = true; inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+                backgroundTintList = ColorStateList.valueOf(pal.sub)
             }
-        add(liveRow, 4)
+            add(name, 2)
+            addButton("Guardar nombre") { prefs.greetName = name.text.toString().trim(); prefs.bump()
+                Toast.makeText(this, "Listo", Toast.LENGTH_SHORT).show() }
+        }
+        subtitle("Reloj")
+        choice(listOf("Grande y fino", "Mediano", "Apilado (hora sobre minutos)", "Sin reloj"), prefs.clockStyle.coerceIn(0, 3)) {
+            prefs.clockStyle = it; changed()
+        }
+        switchRow("Fecha", "Tócala para abrir el calendario", prefs.showDate) { prefs.showDate = it; prefs.bump() }
+        subtitle("Alineación")
+        choice(listOf("Izquierda", "Centro", "Derecha"), prefs.homeAlign.coerceIn(0, 2)) { prefs.homeAlign = it; changed() }
+
+        section("Línea de información")
+        switchRow("Clima", "Temperatura y ciudad. Configúralo en Clima.", prefs.showWeather) { prefs.showWeather = it; prefs.bump() }
+        switchRow("Batería", null, prefs.showBattery) { prefs.showBattery = it; prefs.bump() }
+        switchRow("Próximo evento", "Necesita el permiso de calendario", prefs.showEvent) {
+            prefs.showEvent = it; prefs.bump()
+            if (it && !has(Manifest.permission.READ_CALENDAR)) requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), REQ_PERM)
+        }
+        switchRow("Lo que está sonando", "Canción, artista y controles de Spotify, YouTube Music, etc. Necesita el acceso a notificaciones.",
+            prefs.showMedia) { prefs.showMedia = it; prefs.bump() }
+
+        section("Favoritos")
+        caption("Mantén presionada una app en el cajón para agregarla. Mantén presionado un favorito para moverlo, cambiarle el nombre o quitarlo.")
+        subtitle("Estilo")
+        choice(listOf("Solo texto", "Ícono y texto", "Solo íconos"), prefs.favStyle.coerceIn(0, 2)) { prefs.favStyle = it; changed() }
+        subtitle("Posición")
+        choice(listOf("Debajo del reloj", "Al centro", "Abajo, cerca del pulgar"), prefs.favPos.coerceIn(0, 2)) { prefs.favPos = it; changed() }
+        subtitle("Alineación")
+        choice(listOf("Izquierda", "Centro", "Derecha"), prefs.favAlign.coerceIn(0, 2)) { prefs.favAlign = it; changed() }
+        slider({ "Tamaño del texto: $it" }, 14, 40, prefs.favSize) { prefs.favSize = it; changed() }
+        slider({ "Espacio entre apps: $it" }, 0, 40, prefs.favSpacing) { prefs.favSpacing = it; changed() }
+        link("Quitar todos los favoritos") { prefs.favorites = emptyList(); changed() }
+
+        section("Dock")
+        switchRow("Mostrar el dock", "Hasta 6 apps fijas abajo", prefs.dockOn) { prefs.dockOn = it; changed() }
+        if (prefs.dockOn) caption("Para agregar o quitar: mantén presionada la app → Agregar al dock.")
     }
 
     private fun pageIcons() {
         val packs = IconPacks.installed(this)
+        section("Estilo")
+        choice(listOf(
+            "Colores originales de cada app",
+            "Monocromáticos cuando la app lo permite (Android 13+)",
+            "Silueta de un solo color para todas (minimalista)",
+        ), prefs.iconStyle) { prefs.iconStyle = it; changed() }
+
+        section("Forma de fondo")
+        choice(listOf("Ninguna", "Círculo", "Cuadrado suave", "Cuadrado"), prefs.iconShape.coerceIn(0, 3)) { prefs.iconShape = it; changed() }
+        if (prefs.iconShape != 0) {
+            subtitle("Color de la forma")
+            choice(listOf("Del tema", "Color de énfasis", "Personalizado…"), prefs.shapeColorMode.coerceIn(0, 2)) { i ->
+                if (i == 2) Pickers.askColor(this, pal, "Color de la forma", prefs.shapeColor) { prefs.shapeColor = it; prefs.shapeColorMode = 2; changed() }
+                else { prefs.shapeColorMode = i; changed() }
+            }
+        }
+        if (prefs.iconStyle != 0) {
+            subtitle("Color de los íconos")
+            choice(listOf("Del tema", "Color de énfasis", "Personalizado…"), prefs.glyphColorMode.coerceIn(0, 2)) { i ->
+                if (i == 2) Pickers.askColor(this, pal, "Color de los íconos", prefs.glyphColor) { prefs.glyphColor = it; prefs.glyphColorMode = 2; changed() }
+                else { prefs.glyphColorMode = i; changed() }
+            }
+        }
+        slider({ "Tamaño de los íconos: $it%" }, 60, 140, prefs.iconScale) { prefs.iconScale = it; changed() }
+
         section("Paquete de íconos")
         if (packs.isEmpty()) {
-            caption("No tienes paquetes de íconos instalados. Busca \"icon pack\" en Google Play (por ejemplo, alguno estilo Metro o Windows) y vuelve aquí para elegirlo.")
+            caption("No tienes paquetes de íconos instalados. Busca \"icon pack\" en Google Play (por ejemplo, alguno minimalista o de línea) y vuelve aquí para elegirlo.")
         } else {
             val names = listOf("Íconos del sistema") + packs.map { it.label }
             val sel = packs.indexOfFirst { it.pkg == prefs.iconPack } + 1
             choice(names, sel) { i -> prefs.iconPack = if (i == 0) "" else packs[i - 1].pkg; changed() }
         }
-        section("Estilo de los íconos")
-        choice(listOf(
-            "Colores originales de cada app",
-            "Monocromáticos cuando la app lo permite (Android 13+)",
-            "Silueta de un solo color para todos (estilo Metro puro)",
-        ), prefs.iconStyle) { prefs.iconStyle = it; changed() }
-        caption("El color de los íconos se aplica a los estilos monocromático y silueta.")
-
-        subtitle("Color de íconos y texto")
-        val fgOptions = listOf("Blanco" to Color.WHITE, "Negro" to Color.BLACK, "Color de énfasis" to TileSpec.COLOR_ACCENT)
-        val fgSel = fgOptions.indexOfFirst { it.second == prefs.tileFg }.let { if (it < 0) 3 else it }
-        choice(fgOptions.map { it.first } + "Personalizado", fgSel) { i ->
-            if (i < 3) { prefs.tileFg = fgOptions[i].second; changed() }
-            else Pickers.askColor(this, pal, "Color de íconos y texto",
-                if (prefs.tileFg == TileSpec.COLOR_ACCENT) prefs.accent else prefs.tileFg) { prefs.tileFg = it; changed() }
-        }
-        caption("Cada mosaico puede tener el suyo: mantenlo presionado → paleta → Color del ícono y texto.")
-        slider({ "Tamaño de los íconos: $it%" }, 60, 140, prefs.iconScale) { prefs.iconScale = it; changed() }
 
         val hidden = prefs.hiddenApps
         section("Apps ocultas")
-        if (hidden.isEmpty()) caption("No hay apps ocultas. Para ocultar una, mantenla presionada en la lista de apps.")
+        if (hidden.isEmpty()) caption("No hay apps ocultas. Para ocultar una, mantenla presionada en el cajón.")
         else {
-            caption("Estas apps no aparecen en la lista. Para ocultar otra, mantenla presionada en la lista de apps.")
             val repo = AppRepo(this, prefs).also { it.load() }
             for (key in hidden.sorted()) {
                 val name = repo.allApps.firstOrNull { it.key == key }?.label ?: key.substringBefore("/")
@@ -451,6 +475,40 @@ class SettingsActivity : Activity() {
                 })
             }
         }
+    }
+
+    private fun pageDrawer() {
+        section("Vista")
+        choice(listOf("Lista", "Cuadrícula"), prefs.drawerStyle.coerceIn(0, 1)) { prefs.drawerStyle = it; changed() }
+        if (prefs.drawerStyle == 1) {
+            subtitle("Columnas")
+            val cols = listOf(3, 4, 5, 6)
+            choice(cols.map { "$it" }, cols.indexOf(prefs.drawerColumns).let { if (it < 0) 1 else it }) { prefs.drawerColumns = cols[it]; changed() }
+        } else {
+            switchRow("Letras de sección", "A, B, C… entre las apps", prefs.drawerLetters) { prefs.drawerLetters = it; prefs.bump() }
+            switchRow("Íconos en la lista", "Apágalo para una lista solo de nombres", prefs.drawerIcons) { prefs.drawerIcons = it; prefs.bump() }
+        }
+        slider({ "Opacidad del fondo: $it%" }, 40, 100, prefs.drawerOpacity) { prefs.drawerOpacity = it; changed() }
+
+        section("Búsqueda")
+        switchRow("Abrir el teclado al abrir el cajón", null, prefs.drawerKeyboard) { prefs.drawerKeyboard = it; prefs.bump() }
+        switchRow("Abrir la app sola", "Cuando la búsqueda deja un único resultado", prefs.drawerAutoLaunch) { prefs.drawerAutoLaunch = it; prefs.bump() }
+        caption("Si no hay apps con ese nombre, puedes buscarlo en la web con un toque.")
+    }
+
+    private fun pageGestures() {
+        caption("Elige qué hace cada gesto. \"Bloquear pantalla\" y \"Apps recientes\" necesitan el Tema para todo el teléfono.")
+        section("En Inicio")
+        actionRow("Deslizar hacia arriba", prefs.gestureUp) { prefs.gestureUp = it; changed() }
+        actionRow("Deslizar hacia abajo", prefs.swipeDown) { prefs.swipeDown = it; changed() }
+        actionRow("Deslizar a la izquierda", prefs.gestureLeft) { prefs.gestureLeft = it; changed() }
+        actionRow("Deslizar a la derecha", prefs.gestureRight) { prefs.gestureRight = it; changed() }
+        actionRow("Doble toque", prefs.gestureDoubleTap) { prefs.gestureDoubleTap = it; changed() }
+        actionRow("Mantener presionado", prefs.gestureLong) { prefs.gestureLong = it; changed() }
+        section("En la barra de estado")
+        actionRow("Tocar", prefs.statusTap) { prefs.statusTap = it; changed() }
+        actionRow("Deslizar hacia abajo", prefs.statusSwipe) { prefs.statusSwipe = it; changed() }
+        serviceHint()
     }
 
     private fun pageStatus() {
@@ -580,7 +638,7 @@ class SettingsActivity : Activity() {
         switchRow("Enlace \"Panel de Android\"", "Para abrir el panel original cuando lo necesites", prefs.acAndroidLink) {
             prefs.acAndroidLink = it; prefs.bump()
         }
-        switchRow("Agrupar notificaciones por app", "Como en Windows 10 Mobile. Apágalo para verlas en orden de llegada.",
+        switchRow("Agrupar notificaciones por app", "Apágalo para verlas en orden de llegada.",
             prefs.acGroupNotifs) { prefs.acGroupNotifs = it; prefs.bump() }
         subtitle("Tamaño del texto de las notificaciones")
         val scales = listOf(85, 100, 120)
@@ -599,7 +657,7 @@ class SettingsActivity : Activity() {
         choice(listOf("La misma foto de Inicio", "Otra foto", "Color de énfasis", "Negro"), prefs.lockBg) { m ->
             if (m == 1) pickImage("lock")
             else if (m == 0 && !File(filesDir, "backdrop.jpg").exists()) {
-                Toast.makeText(this, "Primero elige una foto en Inicio y mosaicos → Imagen de fondo", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Primero elige una foto en Pantalla de inicio → Fondo", Toast.LENGTH_LONG).show()
             } else { prefs.lockBg = m; changed() }
         }
         if (prefs.lockBg == 1) link("Elegir otra foto") { pickImage("lock") }
@@ -634,18 +692,6 @@ class SettingsActivity : Activity() {
         section("Color")
         choice(listOf("Negra (como el original)", "Igual al fondo", "Color de énfasis"), prefs.navColor) { prefs.navColor = it; changed() }
         caption("La barra de estado usa este color cuando su fondo está en \"Automático\".")
-    }
-
-    private fun pageGestures() {
-        caption("Elige qué hace cada gesto, como en los launchers tipo Nova. \"Bloquear pantalla\" y \"Apps recientes\" necesitan el Tema para todo el teléfono.")
-        section("En Inicio")
-        actionRow("Deslizar hacia abajo", prefs.swipeDown) { prefs.swipeDown = it; changed() }
-        actionRow("Doble toque", prefs.gestureDoubleTap) { prefs.gestureDoubleTap = it; changed() }
-        caption("Deslizar a la izquierda siempre abre la lista de apps.")
-        section("En la barra de estado")
-        actionRow("Tocar", prefs.statusTap) { prefs.statusTap = it; changed() }
-        actionRow("Deslizar hacia abajo", prefs.statusSwipe) { prefs.statusSwipe = it; changed() }
-        serviceHint()
     }
 
     private fun pageSystem() {
@@ -698,7 +744,7 @@ class SettingsActivity : Activity() {
 
     private fun pagePermissions() {
         caption("Mosaico solo pide lo que necesita cada función.")
-        statusRow("Notificaciones (contadores y Centro de actividades)", NotifService.hasAccess(this)) {
+        statusRow("Notificaciones (puntos, música y Centro de actividades)", NotifService.hasAccess(this)) {
             go(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
         statusRow("Tema para todo el teléfono (accesibilidad)", NavService.isEnabled(this)) { openPage("sistema") }
@@ -810,15 +856,6 @@ class SettingsActivity : Activity() {
         } else Toast.makeText(this, "Ese archivo no tiene ajustes de Mosaico", Toast.LENGTH_LONG).show()
     }
 
-    private fun pinLive(kind: TileKind, name: String) {
-        val tiles = TileStore.load(prefs) ?: mutableListOf()
-        val size = when (kind) { TileKind.WEATHER -> TileSize.WIDE; TileKind.BATTERY -> TileSize.SMALL; else -> TileSize.MEDIUM }
-        tiles.add(TileSpec.live(kind, size))
-        TileStore.save(prefs, tiles)
-        prefs.bump()
-        Toast.makeText(this, "$name anclado a Inicio", Toast.LENGTH_SHORT).show()
-    }
-
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         build()
@@ -870,7 +907,7 @@ class SettingsActivity : Activity() {
                 true
             } catch (e: Throwable) { false }
             runOnUiThread {
-                if (ok) { if (target == "lock") prefs.lockBg = 1 else prefs.bgMode = 1; changed() }
+                if (ok) { if (target == "lock") prefs.lockBg = 1 else prefs.homeBg = 1; changed() }
                 else Toast.makeText(this, "No se pudo usar esa imagen", Toast.LENGTH_SHORT).show()
             }
         }

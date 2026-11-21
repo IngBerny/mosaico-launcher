@@ -200,15 +200,7 @@ object Glyphs {
                 dot(-0.15f, -0.14f, 0.06f); dot(0.08f, -0.2f, 0.06f); dot(0.2f, 0.02f, 0.06f); dot(-0.18f, 0.1f, 0.06f)
             }
             G.ARROW_LEFT -> { ln(0.3f, 0f, -0.3f, 0f); poly(false, -0.1f, -0.2f, -0.3f, 0f, -0.1f, 0.2f) }
-            G.START -> {
-                // Botón Inicio propio de Mosaico: un mosaico mediano, dos pequeños y uno ancho.
-                p.style = Paint.Style.FILL
-                rect.set(X(-0.34f), Y(-0.34f), X(0.02f), Y(0.02f)); c.drawRect(rect, p)
-                rect.set(X(0.08f), Y(-0.34f), X(0.34f), Y(-0.08f)); c.drawRect(rect, p)
-                rect.set(X(0.08f), Y(-0.02f), X(0.34f), Y(0.02f)); c.drawRect(rect, p)
-                rect.set(X(-0.34f), Y(0.08f), X(0.34f), Y(0.34f)); c.drawRect(rect, p)
-                p.style = Paint.Style.STROKE
-            }
+            G.START -> circ(0f, 0f, 0.26f)   // Inicio: un círculo fino, como en Android
             G.CHECK -> poly(false, -0.3f, 0.02f, -0.08f, 0.24f, 0.32f, -0.2f)
             G.LOCK -> {
                 box(-0.28f, -0.04f, 0.28f, 0.38f)
