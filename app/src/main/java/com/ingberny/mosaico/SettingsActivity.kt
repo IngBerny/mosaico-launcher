@@ -201,10 +201,10 @@ class SettingsActivity : Activity() {
         Page("inicio", "Pantalla de inicio", "Fondo, reloj, clima, música, cuadrícula de apps y dock"),
         Page("iconos", "Íconos", "Estilo, forma, color, tamaño, paquetes de íconos, apps ocultas"),
         Page("cajon", "Cajón de apps", "Columnas, tamaño de íconos y nombres, alto, categorías y orden"),
-        Page("barra", "Barra de estado", "Colores, qué íconos mostrar, posición de la hora"),
-        Page("centro", "Centro de actividades", "Botones, orden, columnas, brillo y notificaciones"),
+        Page("barra", "Barra de estado", "La de Android (ocultarla en Inicio) o una propia opcional"),
+        Page("centro", "Centro de actividades propio (opcional)", "Panel de Mosaico en lugar del de Android"),
         Page("bloqueo", "Pantalla de bloqueo", "Fondo, hora, fecha, evento y notificaciones"),
-        Page("navegacion", "Barra de navegación", "Atrás, Inicio y buscar"),
+        Page("navegacion", "Barra de navegación propia (opcional)", "Atrás, Inicio y buscar"),
         Page("gestos", "Gestos", "Deslizar en las 4 direcciones, doble toque, mantener presionado"),
         Page("sistema", "Tema para todo el teléfono", "Usar las barras y el bloqueo de Mosaico en todas las apps"),
         Page("clima", "Clima", "Unidades y ciudad"),
@@ -313,7 +313,7 @@ class SettingsActivity : Activity() {
         pages.forEach { p -> navRow(p.title, p.desc) { openPage(p.id) } }
 
         section("Acerca de")
-        caption("Mosaico 2.1 · Launcher para Android, hecho en Heredia, Costa Rica.\n" +
+        caption("Mosaico 2.2 · Launcher para Android, hecho en Heredia, Costa Rica.\n" +
             "Proyecto independiente. Clima: Open-Meteo.")
     }
 
@@ -554,7 +554,18 @@ class SettingsActivity : Activity() {
     }
 
     private fun pageStatus() {
-        caption("La barra de estado de Mosaico reemplaza a la de Android dentro de Mosaico y, con el Tema para todo el teléfono, en todas las apps.")
+        section("Barra de Android")
+        caption("Mosaico usa la barra de estado y el panel de notificaciones de Android, transparentes sobre tu fondo.")
+        switchRow("Ocultarla en Inicio", "Inicio más limpio. Desliza desde arriba para verla un momento; deslizar hacia abajo en Inicio sigue abriendo el panel.",
+            prefs.hideNativeStatus) { prefs.hideNativeStatus = it; prefs.bump() }
+        caption("Para simplificarla en todo el teléfono: Ajustes de Android → Notificaciones y barra de estado. Ahí puedes ocultar el nombre del operador, la velocidad de red y los íconos de notificaciones, y en MagicOS activar el modo que muestra solo hora, Wi-Fi, señal y batería.")
+        addButton("Abrir ajustes de notificaciones de Android") {
+            try { startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) }
+            catch (e: Exception) { go(Intent(Settings.ACTION_SETTINGS)) }
+        }
+
+        section("Barra propia de Mosaico (opcional)")
+        caption("Si la activas, reemplaza a la de Android dentro de Mosaico y, con el Tema para todo el teléfono, en todas las apps.")
         switchRow("Usarla en Inicio", "Oculta la barra de Android mientras estás en Mosaico.",
             prefs.statusInLauncher) { prefs.statusInLauncher = it; prefs.bump() }
         if (NavService.isEnabled(this)) switchRow("Usarla en todo el teléfono", "Tapa la barra de Android en todas las apps.",
@@ -601,7 +612,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun pageCenter() {
-        caption("El Centro de actividades de Mosaico es propio: no usa el panel de Android. Se abre al deslizar hacia abajo en Inicio o desde la barra de estado (cámbialo en Gestos).")
+        caption("Opcional. Por defecto Mosaico abre el panel de Android. Para usar este en su lugar, elige \"Centro de actividades de Mosaico\" en Gestos.")
         serviceHint()
 
         section("Acciones rápidas")

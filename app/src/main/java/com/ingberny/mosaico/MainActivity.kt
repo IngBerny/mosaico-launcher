@@ -252,11 +252,12 @@ class MainActivity : Activity(), TileHost, HomeHost {
     }
 
     private fun applyImmersive() {
-        if (!ownBar && !ownStatus) return
+        val hideStatus = ownStatus || prefs.hideNativeStatus
+        if (!ownBar && !hideStatus) return
         if (Build.VERSION.SDK_INT >= 30) {
             var types = 0
             if (ownBar) types = types or WindowInsets.Type.navigationBars()
-            if (ownStatus) types = types or WindowInsets.Type.statusBars()
+            if (hideStatus) types = types or WindowInsets.Type.statusBars()
             window.insetsController?.let {
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 it.hide(types)
@@ -267,7 +268,7 @@ class MainActivity : Activity(), TileHost, HomeHost {
             @Suppress("DEPRECATION")
             if (ownBar) f = f or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             @Suppress("DEPRECATION")
-            if (ownStatus) f = f or View.SYSTEM_UI_FLAG_FULLSCREEN
+            if (hideStatus) f = f or View.SYSTEM_UI_FLAG_FULLSCREEN
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = f
         }
@@ -302,7 +303,8 @@ class MainActivity : Activity(), TileHost, HomeHost {
             SysActions.SETTINGS -> openSettings()
             SysActions.MENU -> homeMenu(anchor ?: home)
             SysActions.NONE -> {}
-            SysActions.ANDROID_PANEL, SysActions.ANDROID_QUICK -> if (!SysActions.runSystem(this, id)) action.open()
+            SysActions.ANDROID_PANEL, SysActions.ANDROID_QUICK ->
+                if (!SysActions.runSystem(this, id)) toast("Este teléfono no deja abrir el panel desde Mosaico")
             else -> SysActions.run(this, id)
         }
     }

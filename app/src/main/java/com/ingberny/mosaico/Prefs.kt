@@ -114,6 +114,8 @@ class Prefs(ctx: Context) {
     var gestureRight: Int get() = i("gestureRight", SysActions.NONE); set(v) = put("gestureRight", v)
     var gestureLong: Int get() = i("gestureLong", SysActions.MENU); set(v) = put("gestureLong", v)
     /** Ya se aplicaron los valores por defecto del launcher minimalista (2.0). */
+    /** Oculta la barra de estado de Android mientras estás en Inicio (aparece al deslizar desde arriba). */
+    var hideNativeStatus: Boolean get() = b("hideNativeStatus", false); set(v) = put("hideNativeStatus", v)
     var minimalMigrated: Boolean get() = b("minimalMigrated", false); set(v) = put("minimalMigrated", v)
 
     /** true = cada mosaico toma el color de su app; false = color de énfasis. */
@@ -129,7 +131,7 @@ class Prefs(ctx: Context) {
     var turnstile: Boolean get() = b("turnstile", true); set(v) = put("turnstile", v)
 
     /** Acción (SysActions) al deslizar hacia abajo en Inicio. 0 y 1 coinciden con las versiones anteriores. */
-    var swipeDown: Int get() = i("swipeDown", 0); set(v) = put("swipeDown", v)
+    var swipeDown: Int get() = i("swipeDown", SysActions.ANDROID_PANEL); set(v) = put("swipeDown", v)
 
     var hideLabels: Boolean get() = b("hideLabels", false); set(v) = put("hideLabels", v)
     /** 0 = juntos, 1 = normal, 2 = separados. */
@@ -147,15 +149,15 @@ class Prefs(ctx: Context) {
     var textScale: Int get() = i("textScale", 100); set(v) = put("textScale", v)
 
     /** Barra de navegación propia dentro de Mosaico (oculta la de Android en Inicio). */
-    var navInLauncher: Boolean get() = b("navInLauncher", true); set(v) = put("navInLauncher", v)
+    var navInLauncher: Boolean get() = b("navInLauncher", false); set(v) = put("navInLauncher", v)
     /** 0 = negra, 1 = igual al fondo, 2 = color de énfasis. */
     var navColor: Int get() = i("navColor", 1); set(v) = put("navColor", v)
 
     /** Barra de estado propia dentro de Mosaico (oculta la de Android en Inicio). */
-    var statusInLauncher: Boolean get() = b("statusInLauncher", true); set(v) = put("statusInLauncher", v)
+    var statusInLauncher: Boolean get() = b("statusInLauncher", false); set(v) = put("statusInLauncher", v)
     /** Con el servicio de accesibilidad: barra de estado y de navegación en todo el teléfono. */
-    var statusSystem: Boolean get() = b("statusSystem", true); set(v) = put("statusSystem", v)
-    var navSystem: Boolean get() = b("navSystem", true); set(v) = put("navSystem", v)
+    var statusSystem: Boolean get() = b("statusSystem", false); set(v) = put("statusSystem", v)
+    var navSystem: Boolean get() = b("navSystem", false); set(v) = put("navSystem", v)
     var lockEnabled: Boolean get() = b("lockEnabled", false); set(v) = put("lockEnabled", v)
     /** 0 = foto de Inicio, 1 = foto propia, 2 = color de énfasis, 3 = negro. */
     var lockBg: Int get() = i("lockBg", 2); set(v) = put("lockBg", v)
@@ -188,8 +190,8 @@ class Prefs(ctx: Context) {
     /** Tamaño del texto de la barra en %. */
     var sbTextScale: Int get() = i("sbTextScale", 100); set(v) = put("sbTextScale", v)
     /** Acciones (SysActions) al tocar y al deslizar la barra de estado. */
-    var statusTap: Int get() = i("statusTap", SysActions.ACTION_CENTER); set(v) = put("statusTap", v)
-    var statusSwipe: Int get() = i("statusSwipe", SysActions.ACTION_CENTER); set(v) = put("statusSwipe", v)
+    var statusTap: Int get() = i("statusTap", SysActions.ANDROID_PANEL); set(v) = put("statusTap", v)
+    var statusSwipe: Int get() = i("statusSwipe", SysActions.ANDROID_PANEL); set(v) = put("statusSwipe", v)
 
     // ---------- gestos en Inicio ----------
     var gestureDoubleTap: Int get() = i("gestureDoubleTap", SysActions.NONE); set(v) = put("gestureDoubleTap", v)
@@ -246,6 +248,14 @@ class Prefs(ctx: Context) {
 
     /** Al pasar de la versión de mosaicos al launcher minimalista, se adoptan los nuevos valores por defecto. */
     fun migrateToMinimal() {
+        if (!sp.getBoolean("nativeBars", false)) {
+            // 2.2: se usan la barra de estado, el panel y la navegación de Android.
+            val e = sp.edit()
+            for (k in listOf("swipeDown", "navInLauncher", "statusInLauncher", "statusSystem", "navSystem", "statusTap", "statusSwipe"))
+                e.remove(k)
+            e.putBoolean("nativeBars", true).apply()
+            bump()
+        }
         if (!sp.getBoolean("pocoMigrated", false)) {
             // 2.1: inicio en cuadrícula, íconos a color y cajón en cuadrícula por defecto.
             val e = sp.edit()

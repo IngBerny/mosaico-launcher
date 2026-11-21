@@ -34,7 +34,11 @@ al anochecer que cambia con tu color de énfasis.
   cualquier color) y fuente (fina, normal, monoespaciada, condensada o serif), por separado para el reloj y para los
   nombres de las apps.
 
-**Barra de estado, Centro de actividades y pantalla de bloqueo propios**
+**Barras de Android**
+- Por defecto Mosaico usa la barra de estado, el panel de notificaciones y la navegación de Android, transparentes sobre
+  tu fondo. Deslizar hacia abajo en Inicio abre el panel de Android. Puedes ocultar la barra de estado mientras estás en Inicio.
+
+**Opcional: barra de estado, Centro de actividades y pantalla de bloqueo propios**
 - **Barra de estado:** fondo, colores, qué mostrar, posición de la hora, tamaño y qué pasa al tocarla o deslizarla.
 - **Centro de actividades** (no usa el panel de Android): botones a elegir y en tu orden, columnas, filas, esquinas,
   colores, opacidad, barra de brillo y notificaciones agrupadas o en orden de llegada.
