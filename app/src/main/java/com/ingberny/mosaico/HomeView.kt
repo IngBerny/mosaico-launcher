@@ -47,7 +47,8 @@ class HomeView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     private val align = when (prefs.homeAlign) { 0 -> Gravity.START; 2 -> Gravity.END; else -> Gravity.CENTER_HORIZONTAL }
     private val favGravity = when (prefs.favAlign) { 0 -> Gravity.START; 2 -> Gravity.END; else -> Gravity.CENTER_HORIZONTAL }
 
-    private val column = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    /** Contenido de Inicio (reloj, apps, dock), sin el fondo. */
+    val column = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val widgets = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = align }
     private val favBox = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = favGravity }
     private val dockBox = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }

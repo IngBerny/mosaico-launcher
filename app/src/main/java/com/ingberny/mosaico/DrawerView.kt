@@ -27,16 +27,31 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     private val pal = host.palette
     private val look = host.look
 
+    // Colores del cajón (Personalizar → Cajón de apps → Colores).
+    private val bgBase = when (prefs.drawerBgMode) {
+        1 -> android.graphics.Color.BLACK; 2 -> android.graphics.Color.WHITE; 3 -> prefs.drawerBgColor; else -> pal.bg
+    }
+    private val textColor = when (prefs.drawerTextMode) {
+        1 -> android.graphics.Color.WHITE; 2 -> android.graphics.Color.BLACK; 3 -> prefs.drawerTextColor
+        else -> if (prefs.drawerBgMode == 0) pal.fg else readableOn(bgBase)
+    }
+    private val subColor = withAlpha(textColor, 150)
+    private val accent = if (prefs.drawerAccentMode == 1) prefs.drawerAccentColor else pal.accent
+    private val pillRadius = dp(prefs.drawerSearchRadius.coerceIn(0, 30).toFloat())
+
+    /** Se llama al abrir (true) y al empezar a cerrar (false). */
+    var onShow: ((Boolean) -> Unit)? = null
+
     private val search = EditText(ctx).apply {
         hint = "Buscar apps"
-        setHintTextColor(pal.sub)
-        setTextColor(pal.fg)
+        setHintTextColor(subColor)
+        setTextColor(textColor)
         typeface = look.face
         textSize = 18f
         isSingleLine = true
         imeOptions = EditorInfo.IME_ACTION_GO
         background = null
-        setPadding(dpi(20), dpi(14), dpi(20), dpi(14))
+        setPadding(dpi(22), dpi(12), dpi(22), dpi(12))
     }
     private val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val scroll = object : ScrollView(ctx) {
@@ -70,7 +85,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     private var category = -100   // -100 = todas
 
     init {
-        val panelColor = withAlpha(pal.bg, prefs.drawerOpacity.coerceIn(40, 100) * 255 / 100)
+        val panelColor = withAlpha(bgBase, prefs.drawerOpacity.coerceIn(0, 100) * 255 / 100)
         if (partial) {
             // Tarjeta más pequeña abajo; tocar fuera la cierra.
             setBackgroundColor(withAlpha(android.graphics.Color.BLACK, 90))
@@ -78,7 +93,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             col.isClickable = true
             col.background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(panelColor)
-                val r = dp(28f)
+                val r = dp(prefs.drawerCorner.coerceIn(0, 48).toFloat())
                 cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
             }
         } else {
@@ -86,11 +101,29 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             isClickable = true
         }
         // Asa para indicar que se puede bajar.
-        col.addView(View(ctx).apply { setBackgroundColor(withAlpha(pal.fg, 70)) },
-            LinearLayout.LayoutParams(dpi(36), dpi(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dpi(10) })
-        val bar = FrameLayout(ctx).apply { setBackgroundColor(withAlpha(pal.fg, 18)) }
-        bar.addView(search, LayoutParams(-1, -2))
-        col.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dpi(16), dpi(12), dpi(16), dpi(6)) })
+        if (prefs.drawerHandle) col.addView(View(ctx).apply {
+            background = android.graphics.drawable.GradientDrawable().apply { setColor(withAlpha(textColor, 80)); cornerRadius = dp(2f) }
+        }, LinearLayout.LayoutParams(dpi(36), dpi(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dpi(10) })
+        // Barra de búsqueda redondeada (píldora por defecto).
+        val bar = FrameLayout(ctx).apply {
+            background = when (prefs.drawerSearchStyle) {
+                1 -> android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = pillRadius; setStroke(dpi(1).coerceAtLeast(2), withAlpha(textColor, 90))
+                }
+                2 -> null
+                else -> android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = pillRadius
+                    setColor(if (prefs.drawerSearchMode == 1) prefs.drawerSearchColor else withAlpha(textColor, 26))
+                }
+            }
+        }
+        val searchRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        searchRow.addView(GlyphView(ctx, G.SEARCH, subColor, 0.5f), LinearLayout.LayoutParams(dpi(44), dpi(44)).apply { leftMargin = dpi(8) })
+        search.setPadding(dpi(2), dpi(12), dpi(20), dpi(12))
+        searchRow.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+        bar.addView(searchRow, LayoutParams(-1, -2))
+        if (prefs.drawerSearchStyle != 3)
+            col.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dpi(16), dpi(14), dpi(16), dpi(8)) })
         if (prefs.drawerCategories) {
             val hs = android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false }
             hs.addView(chips)
@@ -129,6 +162,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     fun open(withKeyboard: Boolean = prefs.drawerKeyboard) {
         render()
         visibility = View.VISIBLE
+        onShow?.invoke(true)
         translationY = height.toFloat().takeIf { it > 0 } ?: dp(600f)
         alpha = 0.6f
         anim().translationY(0f).alpha(1f).setDuration(220).start()
@@ -138,6 +172,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
     fun close() {
         if (!isOpen) return
         hideKeyboard()
+        onShow?.invoke(false)
         anim().translationY(height.toFloat()).alpha(0.6f).setDuration(200).withEndAction {
             visibility = View.GONE; translationY = 0f; search.setText(""); scroll.scrollTo(0, 0)
         }.start()
@@ -189,7 +224,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
 
         if (shown.isEmpty()) {
             val raw = search.text.toString().trim()
-            list.addView(context.label("Buscar \"$raw\" en la web", 17f, pal.accent, look.face).apply {
+            list.addView(context.label("Buscar \"$raw\" en la web", 17f, accent, look.face).apply {
                 setPadding(dpi(16), dpi(18), dpi(16), dpi(18))
                 setOnClickListener { webSearch(raw) }
             })
@@ -207,7 +242,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             val letter = AppEntry.normalize(name).take(1).uppercase().let { if (it.isEmpty() || !it[0].isLetter()) "#" else it }
             if (withLetters && prefs.drawerLetters && letter != last) {
                 last = letter
-                list.addView(context.label(letter, 13f, pal.accent, Fonts.medium).apply {
+                list.addView(context.label(letter, 13f, accent, Fonts.medium).apply {
                     setPadding(dpi(16), dpi(16), dpi(16), dpi(4))
                 })
             }
@@ -219,7 +254,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
             row.setPadding(dpi(12), dpi(prefs.drawerRowGap / 2 + 2), dpi(12), dpi(prefs.drawerRowGap / 2 + 2))
             if (prefs.drawerIcons) row.addView(AppIconView(context, look, host.repo, e) { badge(e) },
                 LinearLayout.LayoutParams(dpi(prefs.drawerIconSize - 8), dpi(prefs.drawerIconSize - 8)).apply { rightMargin = dpi(16) })
-            row.addView(context.label(name, prefs.drawerLabelSize + 5f, pal.fg, look.labelFace), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(context.label(name, prefs.drawerLabelSize + 5f, textColor, look.labelFace), LinearLayout.LayoutParams(0, -2, 1f))
             row.setOnClickListener { host.launch(e, row) }
             row.setOnLongClickListener { host.appMenu(e, row, "drawer"); true }
             list.addView(row)
@@ -234,7 +269,7 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
                 val e = chunk.getOrNull(i)
                 if (e == null) { row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)); continue }
                 row.addView(appCell(context, host, e, prefs.drawerIconSize, prefs.drawerLabelSize, prefs.drawerLabels,
-                    pal.fg, false, "drawer"), LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    textColor, false, "drawer"), LinearLayout.LayoutParams(0, -2, 1f).apply {
                     setMargins(0, dpi(prefs.drawerRowGap / 2), 0, dpi(prefs.drawerRowGap / 2))
                 })
             }
@@ -265,10 +300,10 @@ class DrawerView(ctx: Context, private val host: HomeHost) : FrameLayout(ctx) {
         if (category != -100 && category !in present) category = -100
         fun chip(text: String, value: Int) {
             val on = category == value
-            chips.addView(context.label(text, 14f, if (on) readableOn(pal.accent) else pal.fg, look.labelFace).apply {
+            chips.addView(context.label(text, 14f, if (on) readableOn(accent) else textColor, look.labelFace).apply {
                 setPadding(dpi(14), dpi(7), dpi(14), dpi(7))
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(if (on) pal.accent else withAlpha(pal.fg, 18)); cornerRadius = dp(18f)
+                    setColor(if (on) accent else withAlpha(textColor, 22)); cornerRadius = minOf(pillRadius, dp(18f))
                 }
                 setOnClickListener { category = value; render() }
             }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dpi(8) })

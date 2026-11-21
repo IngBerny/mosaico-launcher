@@ -19,8 +19,8 @@ android {
         applicationId = "com.ingberny.mosaico"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10
-        versionName = "2.2"
+        versionCode = 11
+        versionName = "2.3"
     }
 
     signingConfigs {

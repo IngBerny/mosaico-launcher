@@ -104,7 +104,30 @@ class Prefs(ctx: Context) {
     var drawerLetters: Boolean get() = b("drawerLetters", true); set(v) = put("drawerLetters", v)
     var drawerIcons: Boolean get() = b("drawerIcons", true); set(v) = put("drawerIcons", v)
     /** Opacidad del fondo del cajón en %. */
-    var drawerOpacity: Int get() = i("drawerOpacity", 92); set(v) = put("drawerOpacity", v)
+    var drawerOpacity: Int get() = i("drawerOpacity", 80); set(v) = put("drawerOpacity", v)
+    /** Desenfoque de Inicio detrás del cajón (Android 12+), en dp. 0 = sin desenfoque. */
+    var drawerBlur: Int get() = i("drawerBlur", 18); set(v) = put("drawerBlur", v)
+    /** Esconde el reloj y las apps de Inicio mientras el cajón está abierto (el fondo se sigue viendo). */
+    var drawerHideHome: Boolean get() = b("drawerHideHome", true); set(v) = put("drawerHideHome", v)
+    /** Fondo del cajón: 0 del tema, 1 negro, 2 blanco, 3 personalizado. */
+    var drawerBgMode: Int get() = i("drawerBgMode", 0); set(v) = put("drawerBgMode", v)
+    var drawerBgColor: Int get() = i("drawerBgColor", 0xFF0E1317.toInt()); set(v) = put("drawerBgColor", v)
+    /** Texto del cajón: 0 automático, 1 blanco, 2 negro, 3 personalizado. */
+    var drawerTextMode: Int get() = i("drawerTextMode", 0); set(v) = put("drawerTextMode", v)
+    var drawerTextColor: Int get() = i("drawerTextColor", 0xFFE9E4DA.toInt()); set(v) = put("drawerTextColor", v)
+    /** Detalles (categoría elegida, letras): 0 color de énfasis, 1 personalizado. */
+    var drawerAccentMode: Int get() = i("drawerAccentMode", 0); set(v) = put("drawerAccentMode", v)
+    var drawerAccentColor: Int get() = i("drawerAccentColor", SAGE); set(v) = put("drawerAccentColor", v)
+    /** Barra de búsqueda: 0 rellena, 1 contorno, 2 sin fondo, 3 oculta. */
+    var drawerSearchStyle: Int get() = i("drawerSearchStyle", 0); set(v) = put("drawerSearchStyle", v)
+    /** Redondeo de la barra de búsqueda y de las categorías, en dp (30 = píldora). */
+    var drawerSearchRadius: Int get() = i("drawerSearchRadius", 30); set(v) = put("drawerSearchRadius", v)
+    /** Color de relleno de la búsqueda: 0 automático (translúcido), 1 personalizado. */
+    var drawerSearchMode: Int get() = i("drawerSearchMode", 0); set(v) = put("drawerSearchMode", v)
+    var drawerSearchColor: Int get() = i("drawerSearchColor", 0x33FFFFFF); set(v) = put("drawerSearchColor", v)
+    /** Esquinas del cajón cuando no ocupa toda la pantalla, en dp. */
+    var drawerCorner: Int get() = i("drawerCorner", 28); set(v) = put("drawerCorner", v)
+    var drawerHandle: Boolean get() = b("drawerHandle", true); set(v) = put("drawerHandle", v)
     /** Abre la app sola cuando la búsqueda deja un único resultado. */
     var drawerAutoLaunch: Boolean get() = b("drawerAutoLaunch", false); set(v) = put("drawerAutoLaunch", v)
 

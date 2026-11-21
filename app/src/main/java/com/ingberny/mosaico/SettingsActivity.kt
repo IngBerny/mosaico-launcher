@@ -200,7 +200,7 @@ class SettingsActivity : Activity() {
         Page("tema", "Tema, colores y fuente", "Tinta, papel o negro puro, color de énfasis, fuente"),
         Page("inicio", "Pantalla de inicio", "Fondo, reloj, clima, música, cuadrícula de apps y dock"),
         Page("iconos", "Íconos", "Estilo, forma, color, tamaño, paquetes de íconos, apps ocultas"),
-        Page("cajon", "Cajón de apps", "Columnas, tamaño de íconos y nombres, alto, categorías y orden"),
+        Page("cajon", "Cajón de apps", "Tamaño, transparencia, colores, búsqueda, categorías y orden"),
         Page("barra", "Barra de estado", "La de Android (ocultarla en Inicio) o una propia opcional"),
         Page("centro", "Centro de actividades propio (opcional)", "Panel de Mosaico en lugar del de Android"),
         Page("bloqueo", "Pantalla de bloqueo", "Fondo, hora, fecha, evento y notificaciones"),
@@ -313,7 +313,7 @@ class SettingsActivity : Activity() {
         pages.forEach { p -> navRow(p.title, p.desc) { openPage(p.id) } }
 
         section("Acerca de")
-        caption("Mosaico 2.2 · Launcher para Android, hecho en Heredia, Costa Rica.\n" +
+        caption("Mosaico 2.3 · Launcher para Android, hecho en Heredia, Costa Rica.\n" +
             "Proyecto independiente. Clima: Open-Meteo.")
     }
 
@@ -521,7 +521,56 @@ class SettingsActivity : Activity() {
         slider({ "Alto del cajón: ${if (it >= 100) "pantalla completa" else "$it% de la pantalla"}" }, 40, 100, prefs.drawerHeight) {
             prefs.drawerHeight = it; changed()
         }
-        slider({ "Opacidad del fondo: $it%" }, 40, 100, prefs.drawerOpacity) { prefs.drawerOpacity = it; changed() }
+        if (prefs.drawerHeight < 100) slider({ "Esquinas del cajón: $it dp" }, 0, 48, prefs.drawerCorner) { prefs.drawerCorner = it; changed() }
+        switchRow("Asa arriba", "La rayita que indica que se puede bajar", prefs.drawerHandle) { prefs.drawerHandle = it; prefs.bump() }
+
+        section("Transparencia")
+        slider({ "Opacidad del fondo: $it%${if (it == 0) " (transparente)" else ""}" }, 0, 100, prefs.drawerOpacity) {
+            prefs.drawerOpacity = it; changed()
+        }
+        if (Build.VERSION.SDK_INT >= 31) {
+            slider({ "Desenfoque de Inicio detrás: ${if (it == 0) "sin desenfoque" else "$it"}" }, 0, 40, prefs.drawerBlur) {
+                prefs.drawerBlur = it; changed()
+            }
+            caption("El desenfoque se aplica a los fondos de Mosaico (montañas, foto o color). El fondo de pantalla de Android no se puede desenfocar.")
+        }
+        switchRow("Esconder Inicio detrás del cajón", "Oculta el reloj y tus apps mientras el cajón está abierto, para que no se mezclen",
+            prefs.drawerHideHome) { prefs.drawerHideHome = it; prefs.bump() }
+
+        section("Colores")
+        subtitle("Fondo")
+        choice(listOf("Del tema", "Negro", "Blanco", "Personalizado…"), prefs.drawerBgMode.coerceIn(0, 3)) { i ->
+            if (i == 3) Pickers.askColor(this, pal, "Fondo del cajón", prefs.drawerBgColor) { prefs.drawerBgColor = it; prefs.drawerBgMode = 3; changed() }
+            else { prefs.drawerBgMode = i; changed() }
+        }
+        subtitle("Nombres y texto")
+        choice(listOf("Automático", "Blanco", "Negro", "Personalizado…"), prefs.drawerTextMode.coerceIn(0, 3)) { i ->
+            if (i == 3) Pickers.askColor(this, pal, "Texto del cajón", prefs.drawerTextColor) { prefs.drawerTextColor = it; prefs.drawerTextMode = 3; changed() }
+            else { prefs.drawerTextMode = i; changed() }
+        }
+        subtitle("Categoría elegida y letras")
+        choice(listOf("Color de énfasis", "Personalizado…"), prefs.drawerAccentMode.coerceIn(0, 1)) { i ->
+            if (i == 1) Pickers.askColor(this, pal, "Detalles del cajón", prefs.drawerAccentColor) { prefs.drawerAccentColor = it; prefs.drawerAccentMode = 1; changed() }
+            else { prefs.drawerAccentMode = 0; changed() }
+        }
+
+        section("Barra de búsqueda")
+        choice(listOf("Rellena", "Solo contorno", "Sin fondo", "Ocultarla"), prefs.drawerSearchStyle.coerceIn(0, 3)) {
+            prefs.drawerSearchStyle = it; changed()
+        }
+        if (prefs.drawerSearchStyle != 3) {
+            slider({ "Redondeo: ${if (it >= 30) "píldora" else if (it == 0) "cuadrada" else "$it dp"}" }, 0, 30, prefs.drawerSearchRadius) {
+                prefs.drawerSearchRadius = it; changed()
+            }
+            if (prefs.drawerSearchStyle == 0) {
+                subtitle("Color de relleno")
+                choice(listOf("Automático (translúcido)", "Personalizado…"), prefs.drawerSearchMode.coerceIn(0, 1)) { i ->
+                    if (i == 1) Pickers.askColor(this, pal, "Relleno de la búsqueda", prefs.drawerSearchColor) {
+                        prefs.drawerSearchColor = it; prefs.drawerSearchMode = 1; changed()
+                    } else { prefs.drawerSearchMode = 0; changed() }
+                }
+            }
+        } else caption("Sin barra, puedes buscar con el gesto \"Buscar\" o el teclado al abrir el cajón.")
 
         section("Organización")
         switchRow("Categorías", "Pestañas Social, Juegos, Música, Video, Fotos… arriba del cajón", prefs.drawerCategories) {

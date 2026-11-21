@@ -171,6 +171,7 @@ class MainActivity : Activity(), TileHost, HomeHost {
         home = HomeView(this, this)
         root.addView(home, FrameLayout.LayoutParams(-1, -1))
         drawer = DrawerView(this, this)
+        drawer.onShow = { open -> behindDrawer(open) }
         root.addView(drawer, FrameLayout.LayoutParams(-1, -1))
         action = ActionCenter(this, this)
         root.addView(action, FrameLayout.LayoutParams(-1, -1))
@@ -226,6 +227,15 @@ class MainActivity : Activity(), TileHost, HomeHost {
             ins
         }
         setContentView(root)
+    }
+
+    /** Con el cajón abierto: esconde el contenido de Inicio y desenfoca el fondo (Android 12+). */
+    private fun behindDrawer(open: Boolean) {
+        if (prefs.drawerHideHome) home.column.animate().alpha(if (open) 0f else 1f).setDuration(180).start()
+        if (Build.VERSION.SDK_INT >= 31 && prefs.drawerBlur > 0) {
+            val r = dp(prefs.drawerBlur.toFloat())
+            home.setRenderEffect(if (open) android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.CLAMP) else null)
+        }
     }
 
     private fun setupWindow() {

@@ -21,6 +21,9 @@ al anochecer que cambia con tu color de énfasis.
   (pantalla completa o una tarjeta más pequeña abajo).
 - Pestañas por categoría (Social, Juegos, Música, Video, Fotos, Noticias, Mapas, Productividad), como en POCO.
 - Orden alfabético, por instalación reciente o por color del ícono.
+- Transparencia de 0 a 100 %, desenfoque de Inicio detrás (Android 12+) y opción de esconder Inicio mientras está abierto.
+- Colores propios: fondo, texto, categoría elegida y letras. Barra de búsqueda rellena, con contorno, sin fondo u oculta,
+  con redondeo ajustable (píldora por defecto).
 - Búsqueda sin acentos, búsqueda en la web si no hay resultados y opción de abrir la app sola cuando queda una.
 - Mantén presionada una app para agregarla a Inicio o al dock, cambiarle el nombre, ocultarla, ver su información
   o desinstalarla. Se cierra deslizando hacia abajo.
